@@ -1,0 +1,56 @@
+#!/bin/bash
+
+while [ "$*" != "" ]
+do
+    oldFileName="$1"
+    shift
+    dirname=`dirname ${oldFileName}`
+    basename=`basename ${oldFileName}`
+
+    oldFileName="${dirname}/${basename}"
+    createDate=`exiftool -CreateDate "${oldFileName}"`
+    date=`echo ${createDate} | sed -e 's|^Create Date : \([0-9][0-9][0-9][0-9]\):\([0-9][0-9]\):\([0-9][0-9]\) \([0-9][0-9]\):\([0-9][0-9]\):\([0-9][0-9]\).*$|\1\2\3-\4\5\6|; s|:||g; s| |-|g'`
+
+    # If the file does not have an EXIF create date, we won't touch the file.
+    if [ "${date}" == '' ]
+    then
+	echo "${oldFileName} unmodified"
+	break;
+    fi
+
+    # If the create date as extracted via exiftool is not in the
+    # expected format, we won't touch the file.
+    check=`echo ${date} | sed -e 's|^[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]$||'`
+    if [ "${check}" != '' ]
+    then
+	echo "${oldFileName} unmodified"
+	break;
+    fi
+
+    i=1;
+    renamed=0
+    while [ ${renamed} -eq 0 ]
+    do
+	if [ $i -eq 1 ]
+	then
+	    extension=""
+	else
+	    extension="-${i}"
+	fi
+	newFileName="${dirname}/${date}${extension}.jpg"
+	if [ -e ${newFileName} ]
+	then
+	    i=`expr ${i} + 1`
+	else
+	    if [ "${oldFileName}" == "${newFileName}" ]
+	    then
+		echo "${oldFileName} unmodified"
+	    else
+		mv "${oldFileName}" "${newFileName}"
+		echo "${oldFileName} renamed to ${newFileName}"
+	    fi
+	    renamed=1
+	fi
+    done
+done
+
