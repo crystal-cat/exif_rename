@@ -1,6 +1,30 @@
 #!/bin/bash
 set -e
+parse_switches=true
+
 while [ -n "${1}" ]; do
+    if ${parse_switches}; then
+        if [ "${1:0:1}" == "-" ]; then
+            if [ "${1}" == "--" ]; then
+                parse_switches=false
+            elif [ "${1}" == "-h" ] || [ "${1}" == "--help" ]; then
+                echo "Usage: ${0} [OPTION]... [FILE]..."
+                echo "Rename JPEG files based on their EXIF data."
+                echo
+                echo "-h, --help      This help message"
+                echo
+                exit
+            else
+                echo "Unrecognized option: ${1}"
+                exit
+            fi
+            shift
+            continue
+        else
+            parse_switches=false
+        fi
+    fi
+
     INFILE="${1}"
     date=$(exiftool -d %Y%m%d-%H%M%S -p '$CreateDate' "$INFILE")
     OUTFILE="${date}.jpg"
