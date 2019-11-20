@@ -1,6 +1,17 @@
 #!/bin/bash
 set -e
 parse_switches=true
+simulate=false
+
+# void run_command(string command, bool simulate)
+run_command()
+{
+    if $2; then
+        echo "${1}"
+    else
+        echo "$(${1})"
+    fi
+}
 
 while [ -n "${1}" ]; do
     if ${parse_switches}; then
@@ -12,8 +23,12 @@ while [ -n "${1}" ]; do
                 echo "Rename JPEG files based on their EXIF data."
                 echo
                 echo "-h, --help      This help message"
+                echo "-s, --simulate  Simulate a run, only print what would be done"
                 echo
                 exit
+            elif [ "${1}" == "-s" ] || [ "${1}" == "--simulate" ]; then
+                echo "Simulation mode on"
+                simulate=true
             else
                 echo "Unrecognized option: ${1}"
                 exit
@@ -41,7 +56,7 @@ while [ -n "${1}" ]; do
         done
 
         echo "Rename ${INFILE} to ${OUTFILE}"
-        mv "${INFILE}" "${OUTFILE}"
+        run_command "mv ${INFILE} ${OUTFILE}" ${simulate}
     fi
 
     shift
