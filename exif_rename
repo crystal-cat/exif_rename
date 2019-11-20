@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 parse_switches=true
+mv_command="mv"
 simulate=false
 
 # void run_command(string command, bool simulate)
@@ -23,9 +24,13 @@ while [ -n "${1}" ]; do
                 echo "Rename JPEG files based on their EXIF data."
                 echo
                 echo "-h, --help      This help message"
+                echo "-g, --git-mv    Use \"git mv\" instead of \"mv\""
                 echo "-s, --simulate  Simulate a run, only print what would be done"
                 echo
                 exit
+            elif [ "${1}" == "-g" ] || [ "${1}" == "--git-mv" ]; then
+                echo "Using git mv"
+                mv_command="git mv"
             elif [ "${1}" == "-s" ] || [ "${1}" == "--simulate" ]; then
                 echo "Simulation mode on"
                 simulate=true
@@ -56,7 +61,7 @@ while [ -n "${1}" ]; do
         done
 
         echo "Rename ${INFILE} to ${OUTFILE}"
-        run_command "mv ${INFILE} ${OUTFILE}" ${simulate}
+        run_command "${mv_command} ${INFILE} ${OUTFILE}" ${simulate}
     fi
 
     shift
