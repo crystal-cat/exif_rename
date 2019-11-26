@@ -23,6 +23,9 @@ import subprocess
 import sys
 
 
+class ExifReadException(Exception):
+    pass
+
 simulated_filelist = []
 def find_unique_filename(basename, extension, simulate):
     index = 1
@@ -44,9 +47,20 @@ def matches_timestamp(filename, timestamp, extension):
     midsection = filename[len(timestamp):-len(extension)]
     return re.match("-\\d+", midsection) != None
 
+exif_date_pattern = re.compile('^(\\d{4}):(\\d{2}):(\\d{2}) (\\d{2}):(\\d{2}):(\\d{2})$')
+def get_exif_timestamp(filename):
+    exif_dict = piexif.load(filename)
+    if len(exif_dict["Exif"]) == 0:
+        raise ExifReadException("File {0} does not contain any EXIF data!".format(filename))
+    if not piexif.ExifIFD.DateTimeDigitized in exif_dict["Exif"]:
+        raise ExifReadException("File {0} does not contain an EXIF timestamp.".format(filename))
+
+    datetime_str = exif_dict["Exif"][piexif.ExifIFD.DateTimeDigitized].decode()
+    datetime_tuple = list(map(int, exif_date_pattern.match(datetime_str).groups()))
+    return datetime.datetime(datetime_tuple[0], datetime_tuple[1], datetime_tuple[2], datetime_tuple[3], datetime_tuple[4], datetime_tuple[5])
+
 def main(args):
     ext = "jpg"
-    p = re.compile('^(\\d{4}):(\\d{2}):(\\d{2}) (\\d{2}):(\\d{2}):(\\d{2})$')
     cmd_list = args.mv_cmd.split(" ")
 
     for filename in args.files:
@@ -54,31 +68,23 @@ def main(args):
             print("File {0} does not exist!".format(filename), file=sys.stderr)
             continue
 
-        exif_dict = piexif.load(filename)
-        if len(exif_dict["Exif"]) == 0:
-            print("File {0} does not contain any EXIF data!".format(filename), file=sys.stderr)
-            continue
+        try:
+            dt = get_exif_timestamp(filename)
+            formatted_date = dt.strftime(args.date_format)
+            if matches_timestamp(filename, formatted_date, ext):
+                print("File {0} unmodified (file name already matches exif data)".format(filename), file=sys.stderr)
+                continue
 
-        if not piexif.ExifIFD.DateTimeDigitized in exif_dict["Exif"]:
-            print("File {0} does not contain an EXIF timestamp.".format(filename), file=sys.stderr)
-            continue
+            to_filename = find_unique_filename(formatted_date, ext, args.simulate)
+            print("{0} -> {1}".format(filename, to_filename))
 
-        datetime_str = exif_dict["Exif"][piexif.ExifIFD.DateTimeDigitized].decode()
-        datetime_tuple = list(map(int, p.match(datetime_str).groups()))
-        dt = datetime.datetime(datetime_tuple[0], datetime_tuple[1], datetime_tuple[2], datetime_tuple[3], datetime_tuple[4], datetime_tuple[5])
-        formatted_date = dt.strftime(args.date_format)
-        if matches_timestamp(filename, formatted_date, ext):
-            print("File {0} unmodified (file name already matches exif data)".format(filename), file=sys.stderr)
-            continue
+            if args.simulate:
+                print('{0} "{1}" "{2}"'.format(args.mv_cmd, filename, to_filename))
+            else:
+                subprocess.run(cmd_list + [filename, to_filename])
 
-        to_filename = find_unique_filename(formatted_date, ext, args.simulate)
-
-        print("{0} -> {1}".format(filename, to_filename))
-
-        if args.simulate:
-            print('{0} "{1}" "{2}"'.format(args.mv_cmd, filename, to_filename))
-        else:
-            subprocess.run(cmd_list + [filename, to_filename])
+        except ExifReadException as e:
+            print(e, file=sys.stderr)
 
 
 if __name__ == "__main__":
