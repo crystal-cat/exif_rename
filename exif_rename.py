@@ -52,7 +52,10 @@ def matches_timestamp(filename, timestamp, extension):
 
 exif_date_pattern = re.compile('^(\\d{4}):(\\d{2}):(\\d{2}) (\\d{2}):(\\d{2}):(\\d{2})$')
 def get_exif_timestamp(filename):
-    exif_dict = piexif.load(filename)
+    try:
+        exif_dict = piexif.load(filename)
+    except piexif.InvalidImageDataError as e:
+        raise TimestampReadException(str(e))
     if len(exif_dict["Exif"]) == 0:
         raise TimestampReadException("File {0} does not contain any EXIF data!".format(filename))
     if not piexif.ExifIFD.DateTimeDigitized in exif_dict["Exif"]:
