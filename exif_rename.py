@@ -95,6 +95,12 @@ def main(args):
     for filename in args.files:
         sys.stdout.write(filename)
         sys.stdout.write(' ')
+
+        if os.path.isdir(filename):
+            print("unmodified (is a directory)")
+            print("Skipping {0} (is a directory)".format(filename), file=sys.stderr)
+            continue
+
         if not os.path.isfile(filename):
             print("unmodified (could not find file)")
             print("Could not find file: {0}".format(filename), file=sys.stderr)
