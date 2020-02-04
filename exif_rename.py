@@ -70,40 +70,45 @@ def get_stat_timestamp(filename, timestamp_type):
     return datetime.datetime.fromtimestamp(getattr(statinfo, timestamp_type))
 
 def get_timestamp(filename, date_sources):
+    exceptions = []
+
     for date_source in date_sources:
         if date_source == 'exif':
             try:
-                return get_exif_timestamp(filename)
+                return (date_source, get_exif_timestamp(filename))
             except TimestampReadException as e:
-                print(e, file=sys.stderr)
+                exceptions.append(str(e))
 
         elif date_source == 'file-created':
-            return get_stat_timestamp(filename, 'st_ctime')
+            return (date_source, get_stat_timestamp(filename, 'st_ctime'))
         elif date_source == 'file-modified':
-            return get_stat_timestamp(filename, 'st_mtime')
+            return (date_source, get_stat_timestamp(filename, 'st_mtime'))
         else:
             raise CommandLineParseException('Unknown date source: ' + date_source)
 
-    raise TimestampReadException('No more date sources to try!')
+    raise TimestampReadException('\n'.join(exceptions))
 
 def main(args):
     ext = "jpg"
     cmd_list = args.mv_cmd.split(" ")
 
     for filename in args.files:
+        sys.stdout.write(filename)
+        sys.stdout.write(' ')
         if not os.path.isfile(filename):
-            print("File {0} does not exist!".format(filename), file=sys.stderr)
+            print("unmodified (could not find file)")
+            print("Could not find file: {0}".format(filename), file=sys.stderr)
             continue
 
         try:
-            dt = get_timestamp(filename, args.date_sources)
+            (date_source, dt) = get_timestamp(filename, args.date_sources)
             formatted_date = dt.strftime(args.date_format)
             if matches_timestamp(filename, formatted_date, ext):
-                print("File {0} unmodified (file name already matches exif data)".format(filename), file=sys.stderr)
+                print("unmodified (file name already matches)".format(filename))
                 continue
 
             to_filename = find_unique_filename(formatted_date, ext, args.simulate)
-            print("{0} -> {1}".format(filename, to_filename))
+            print("-({0})-> {1}".format(date_source, to_filename))
 
             if args.simulate:
                 print('{0} "{1}" "{2}"'.format(args.mv_cmd, filename, to_filename))
@@ -111,6 +116,7 @@ def main(args):
                 subprocess.run(cmd_list + [filename, to_filename])
 
         except TimestampReadException as e:
+            print('unmodified (no more date sources)')
             print(e, file=sys.stderr)
 
 def parse_move_command(args):
