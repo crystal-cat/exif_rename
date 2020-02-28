@@ -23,6 +23,20 @@ import subprocess
 import sys
 
 
+class StderrLogger:
+    def __init__(self, pause_on_error=False):
+        if pause_on_error:
+            self.log = self.log_with_pause
+        else:
+            self.log = self.log_without_pause
+
+    def log_without_pause(self, error_str):
+        print(error_str, file=sys.stderr)
+
+    def log_with_pause(self, error_str):
+        self.log_without_pause(error_str)
+        input()
+
 class TimestampReadException(Exception):
     pass
 
@@ -56,6 +70,7 @@ def get_exif_timestamp(filename):
         exif_dict = piexif.load(filename)
     except piexif.InvalidImageDataError as e:
         raise TimestampReadException(str(e))
+
     if len(exif_dict["Exif"]) == 0:
         raise TimestampReadException("File {0} does not contain any EXIF data!".format(filename))
     if not piexif.ExifIFD.DateTimeDigitized in exif_dict["Exif"]:
@@ -84,13 +99,14 @@ def get_timestamp(filename, date_sources):
         elif date_source == 'file-modified':
             return (date_source, get_stat_timestamp(filename, 'st_mtime'))
         else:
-            raise CommandLineParseException('Unknown date source: ' + date_source)
+            raise ValueError('Unknown date source: ' + date_source)
 
     raise TimestampReadException('\n'.join(exceptions))
 
 def main(args):
     ext = "jpg"
     cmd_list = args.mv_cmd.split(" ")
+    logger = StderrLogger(pause_on_error=args.pause_on_error)
 
     for filename in args.files:
         sys.stdout.write(filename)
@@ -98,12 +114,12 @@ def main(args):
 
         if os.path.isdir(filename):
             print("unmodified (is a directory)")
-            print("Skipping {0} (is a directory)".format(filename), file=sys.stderr)
+            logger.log("Skipping {0} (is a directory)".format(filename))
             continue
 
         if not os.path.isfile(filename):
             print("unmodified (could not find file)")
-            print("Could not find file: {0}".format(filename), file=sys.stderr)
+            logger.log("Could not find file: {0}".format(filename))
             continue
 
         try:
@@ -123,7 +139,7 @@ def main(args):
 
         except TimestampReadException as e:
             print('unmodified (no more date sources)')
-            print(e, file=sys.stderr)
+            logger.log(e)
 
 def parse_move_command(args):
     if args.git_mv:
@@ -155,6 +171,7 @@ if __name__ == "__main__":
     parser.add_argument("-g", "--git-mv", action="store_true", default=False, help="Use git mv instead of regular mv for renaming")
     parser.add_argument("-m", "--mv-cmd", action="store", metavar="cmd", default="mv", dest="mv_cmd_raw", help="Specify a command to use for renaming instead of mv")
     parser.add_argument("-s", "-n", "--simulate", "--dry-run", dest="simulate", action="store_true", default=False, help="Simulate only (print what would be done, don't do anything)")
+    parser.add_argument("-p", "--pause-on-error", action="store_true", default=False, help="Stop to wait for user input if an error occurs.")
 
     # Specify output of "--version"
     parser.add_argument(
@@ -174,5 +191,9 @@ if __name__ == "__main__":
         print(e, file=sys.stderr)
         sys.exit(1)
 
-    main(args)
+    try:
+        main(args)
+    except KeyboardInterrupt:
+        print()        # Be nice and finish the line with ^C ;)
+        sys.exit(2)
 
