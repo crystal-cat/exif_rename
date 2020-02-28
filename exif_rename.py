@@ -19,11 +19,35 @@ import datetime
 import os
 import piexif
 import re
+import subprocess
 import sys
 
 
+simulated_filelist = []
+def find_unique_filename(basename, extension, simulate):
+    index = 1
+    candidate = basename + "." + extension
+    while os.path.exists(candidate) or ( simulate and candidate in simulated_filelist ):
+        candidate = "{0}-{1}.{2}".format(basename, index, extension)
+        index += 1
+
+    if simulate:
+        simulated_filelist.append(candidate)
+
+    return candidate
+
+def matches_timestamp(filename, timestamp, extension):
+    if (timestamp + "." + extension) == filename:
+        return True
+    if not filename.startswith(timestamp) or not filename.endswith(extension):
+        return False
+    midsection = filename[len(timestamp):-len(extension)]
+    return re.match("-\\d+", midsection) != None
+
 def main(args):
+    ext = "jpg"
     p = re.compile('^(\\d{4}):(\\d{2}):(\\d{2}) (\\d{2}):(\\d{2}):(\\d{2})$')
+    cmd_list = args.mv_cmd.split(" ")
 
     for filename in args.files:
         if not os.path.isfile(filename):
@@ -42,9 +66,19 @@ def main(args):
         datetime_str = exif_dict["Exif"][piexif.ExifIFD.DateTimeDigitized].decode()
         datetime_tuple = list(map(int, p.match(datetime_str).groups()))
         dt = datetime.datetime(datetime_tuple[0], datetime_tuple[1], datetime_tuple[2], datetime_tuple[3], datetime_tuple[4], datetime_tuple[5])
-        to_filename = dt.strftime("%Y-%m-%d-%H.%m.%s.jpg")
+        formatted_date = dt.strftime("%Y-%m-%d-%H.%m.%s")
+        if matches_timestamp(filename, formatted_date, ext):
+            print("File {0} unmodified (file name already matches exif data)".format(filename), file=sys.stderr)
+            continue
+
+        to_filename = find_unique_filename(formatted_date, ext, args.simulate)
 
         print("{0} -> {1}".format(filename, to_filename))
+
+        if args.simulate:
+            print('{0} "{1}" "{2}"'.format(args.mv_cmd, filename, to_filename))
+        else:
+            subprocess.run(cmd_list + [filename, to_filename])
 
 
 if __name__ == "__main__":
@@ -52,6 +86,11 @@ if __name__ == "__main__":
     
     # Files to process
     parser.add_argument("files", nargs="+", metavar="FILE", help="List of files to process")
+
+    # Options
+    parser.add_argument("-g", "--git-mv", action="store_true", default=False, help="Use git mv instead of regular mv for renaming")
+    parser.add_argument("-m", "--mv-cmd", action="store", metavar="cmd", default="mv", dest="mv_cmd", help="Specify a command to use for renaming instead of mv")
+    parser.add_argument("-s", "--simulate", action="store_true", default=False, help="Simulate only (print what would be done, don't do anything)")
 
     # Specify output of "--version"
     parser.add_argument(
@@ -61,5 +100,13 @@ if __name__ == "__main__":
             version=__version__, copyright=__copyright__, license=__license__))
 
     args = parser.parse_args()
+
+    # Resolve conflicts
+    if args.git_mv:
+        if args.mv_cmd != "mv":
+            print("Conflicting options specified: -g and -m")
+            sys.exit(1)
+        args.mv_cmd = "git mv"
+
     main(args)
 
