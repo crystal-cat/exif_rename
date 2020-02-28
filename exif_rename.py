@@ -154,7 +154,7 @@ if __name__ == "__main__":
     parser.add_argument("-f", "--date-format", action="store", metavar="fmt", default=default_dateformat, help="Specify a custom date format (default " + default_dateformat_help + ", see man (1) date for details)")
     parser.add_argument("-g", "--git-mv", action="store_true", default=False, help="Use git mv instead of regular mv for renaming")
     parser.add_argument("-m", "--mv-cmd", action="store", metavar="cmd", default="mv", dest="mv_cmd_raw", help="Specify a command to use for renaming instead of mv")
-    parser.add_argument("-s", "--simulate", action="store_true", default=False, help="Simulate only (print what would be done, don't do anything)")
+    parser.add_argument("-s", "-n", "--simulate", "--dry-run", dest="simulate", action="store_true", default=False, help="Simulate only (print what would be done, don't do anything)")
 
     # Specify output of "--version"
     parser.add_argument(
