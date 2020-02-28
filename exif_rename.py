@@ -165,14 +165,16 @@ if __name__ == "__main__":
     # Files to process
     parser.add_argument("files", nargs="+", metavar="FILE", help="List of files to process")
 
-    # Options
-    parser.add_argument("-d", "--date-source", action="store", dest="date_source_str", metavar="src", default="exif", help="Specify the date source(s) to try in order, comma-separated (exif, file-created, file-modified)")
-    parser.add_argument("-f", "--date-format", action="store", metavar="fmt", default=default_dateformat, help="Specify a custom date format (default " + default_dateformat_help + ", see man (1) date for details)")
-    parser.add_argument("-g", "--git-mv", action="store_true", default=False, help="Use git mv instead of regular mv for renaming")
-    parser.add_argument("-m", "--mv-cmd", action="store", metavar="cmd", default="mv", dest="mv_cmd_raw", help="Specify a command to use for renaming instead of mv")
-    parser.add_argument("-s", "-n", "--simulate", "--dry-run", dest="simulate", action="store_true", default=False, help="Simulate only (print what would be done, don't do anything)")
-    parser.add_argument("-p", "--pause-on-error", action="store_true", default=False, help="Stop to wait for user input if an error occurs.")
+    exec_group = parser.add_argument_group("Program execution")
+    exec_group.add_argument("-s", "-n", "--simulate", "--dry-run", dest="simulate", action="store_true", default=False, help="Simulate only (print what would be done, don't do anything)")
+    exec_group.add_argument("-p", "--pause-on-error", action="store_true", default=False, help="Stop to wait for user input if an error occurs.")
+    exec_group.add_argument("-g", "--git-mv", action="store_true", default=False, help="Use git mv instead of regular mv for renaming")
+    exec_group.add_argument("-m", "--mv-cmd", action="store", metavar="cmd", default="mv", dest="mv_cmd_raw", help="Specify a command to use for renaming instead of mv")
 
+    date_group = parser.add_argument_group("Date options")
+    date_group.add_argument("-d", "--date-source", action="store", dest="date_source_str", metavar="src", default="exif", help="Specify the date source(s) to try in order, comma-separated (exif, file-created, file-modified)")
+    date_group.add_argument("-f", "--date-format", action="store", metavar="fmt", default=default_dateformat, help="Specify a custom date format (default " + default_dateformat_help + ", see man (1) date for details)")
+    
     # Specify output of "--version"
     parser.add_argument(
         "--version",
