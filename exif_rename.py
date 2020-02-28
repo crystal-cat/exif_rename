@@ -5,7 +5,7 @@ A tool for batch renaming image files based on their (creation) date.
 """
 
 __author__ = "Krista Karppinen"
-__version__ = "0.1.0"
+__version__ = "0.8.0"
 __copyright__ = "Copyright (C) 2020 Krista Karppinen"
 __license__  = """License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.
 This is free software: you are free to change and redistribute it.
@@ -66,7 +66,7 @@ def main(args):
         datetime_str = exif_dict["Exif"][piexif.ExifIFD.DateTimeDigitized].decode()
         datetime_tuple = list(map(int, p.match(datetime_str).groups()))
         dt = datetime.datetime(datetime_tuple[0], datetime_tuple[1], datetime_tuple[2], datetime_tuple[3], datetime_tuple[4], datetime_tuple[5])
-        formatted_date = dt.strftime("%Y-%m-%d-%H.%m.%s")
+        formatted_date = dt.strftime(args.date_format)
         if matches_timestamp(filename, formatted_date, ext):
             print("File {0} unmodified (file name already matches exif data)".format(filename), file=sys.stderr)
             continue
@@ -82,12 +82,14 @@ def main(args):
 
 
 if __name__ == "__main__":
+    default_dateformat = "%%Y-%%m-%%d_%%H.%%M.%%S"
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter)
     
     # Files to process
     parser.add_argument("files", nargs="+", metavar="FILE", help="List of files to process")
 
     # Options
+    parser.add_argument("-f", "--date-format", action="store", metavar="fmt", default=default_dateformat, help="Specify a custom date format (default " + default_dateformat + ", see man (1) date for details)")
     parser.add_argument("-g", "--git-mv", action="store_true", default=False, help="Use git mv instead of regular mv for renaming")
     parser.add_argument("-m", "--mv-cmd", action="store", metavar="cmd", default="mv", dest="mv_cmd", help="Specify a command to use for renaming instead of mv")
     parser.add_argument("-s", "--simulate", action="store_true", default=False, help="Simulate only (print what would be done, don't do anything)")
