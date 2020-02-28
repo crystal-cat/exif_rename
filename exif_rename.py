@@ -80,20 +80,28 @@ def get_exif_timestamp(filename):
     datetime_tuple = list(map(int, exif_date_pattern.match(datetime_str).groups()))
     return datetime.datetime(datetime_tuple[0], datetime_tuple[1], datetime_tuple[2], datetime_tuple[3], datetime_tuple[4], datetime_tuple[5])
 
+def get_filename_timestamp(filename, filename_format):
+    try:
+        return datetime.datetime.strptime(filename, filename_format)
+    except ValueError:
+        raise TimestampReadException("Filename didn't match the specified pattern")
+
 def get_stat_timestamp(filename, timestamp_type):
     statinfo = os.stat(filename)
     return datetime.datetime.fromtimestamp(getattr(statinfo, timestamp_type))
 
-def get_timestamp(filename, date_sources):
+def get_timestamp(filename, args):
     exceptions = []
 
-    for date_source in date_sources:
+    for date_source in args.date_sources:
         if date_source == 'exif':
             try:
                 return (date_source, get_exif_timestamp(filename))
             except TimestampReadException as e:
                 exceptions.append(str(e))
 
+        elif date_source == 'file-name':
+            return (date_source, get_filename_timestamp(filename, args.source_name_format))
         elif date_source == 'file-created':
             return (date_source, get_stat_timestamp(filename, 'st_ctime'))
         elif date_source == 'file-modified':
@@ -123,7 +131,7 @@ def main(args):
             continue
 
         try:
-            (date_source, dt) = get_timestamp(filename, args.date_sources)
+            (date_source, dt) = get_timestamp(filename, args)
             formatted_date = dt.strftime(args.date_format)
             if matches_timestamp(filename, formatted_date, ext):
                 print("unmodified (file name already matches)".format(filename))
@@ -152,8 +160,10 @@ def parse_move_command(args):
 def parse_date_sources(args):
     sources = args.date_source_str.split(',')
     for source in sources:
-        if source not in ('exif', 'file-created', 'file-modified'):
+        if source not in ('exif', 'file-name', 'file-created', 'file-modified'):
             raise CommandLineParseException('Unknown date source: ' + source)
+        if source == 'file-name' and args.source_name_format == None:
+            raise CommandLineParseException('You have to specify "--source-name-format" to use the "file-name" source.')
 
     return sources
 
@@ -172,8 +182,9 @@ if __name__ == "__main__":
     exec_group.add_argument("-m", "--mv-cmd", action="store", metavar="cmd", default="mv", dest="mv_cmd_raw", help="Specify a command to use for renaming instead of mv")
 
     date_group = parser.add_argument_group("Date options")
-    date_group.add_argument("-d", "--date-source", action="store", dest="date_source_str", metavar="src", default="exif", help="Specify the date source(s) to try in order, comma-separated (exif, file-created, file-modified)")
-    date_group.add_argument("-f", "--date-format", action="store", metavar="fmt", default=default_dateformat, help="Specify a custom date format (default " + default_dateformat_help + ", see man (1) date for details)")
+    date_group.add_argument("-d", "--date-source", action="store", dest="date_source_str", metavar="src", default="exif", help="Specify the date source(s) to try in order, comma-separated (exif, file-name, file-created, file-modified)")
+    date_group.add_argument("-f", "--date-format", action="store", metavar="fmt", default=default_dateformat, help="Specify a custom date format (default " + default_dateformat_help + ", see man (3) strftime for the format specification)")
+    date_group.add_argument("--source-name-format", action="store", metavar="fmt", default=None, help="Specify a source file name format for file-name source. See man (3) strftime for the format specification.")
     
     # Specify output of "--version"
     parser.add_argument(
