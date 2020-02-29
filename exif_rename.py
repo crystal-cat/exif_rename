@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# PYTHON_ARGCOMPLETE_OK
 """
 exif_rename
 A tool for batch renaming image files based on their (creation) date.
@@ -192,6 +193,13 @@ if __name__ == "__main__":
         action="version",
         version="%(prog)s (version {version})\n{copyright}\n{license}".format(
             version=__version__, copyright=__copyright__, license=__license__))
+
+    # enable bash completion if argcomplete is available
+    try:
+        import argcomplete
+        argcomplete.autocomplete(parser)
+    except ImportError:
+        pass
 
     args = parser.parse_args()
 
