@@ -126,7 +126,9 @@ def get_timestamp(filename, args):
 
 def main(args):
     ext = "jpg"
-    cmd_list = args.mv_cmd.split(" ")
+    cmd_list = None
+    if args.mv_cmd:
+        cmd_list = args.mv_cmd.split()
     logger = StderrLogger(pause_on_error=args.pause_on_error)
 
     for filename in args.files:
@@ -154,9 +156,15 @@ def main(args):
             print("-({0})-> {1}".format(date_source, to_filename))
 
             if args.simulate:
-                print('{0} "{1}" "{2}"'.format(args.mv_cmd, filename, to_filename))
+                if args.mv_cmd:
+                    print(f'{args.mv_cmd} "{filename}" "{to_filename}"')
+                else:
+                    print(f'os.rename("{filename}", "{to_filename}")')
             else:
-                subprocess.run(cmd_list + [filename, to_filename])
+                if args.mv_cmd:
+                    subprocess.run(cmd_list + [filename, to_filename])
+                else:
+                    os.rename(filename, to_filename)
 
         except TimestampReadException as e:
             print('unmodified (no more date sources)')
@@ -205,11 +213,10 @@ if __name__ == "__main__":
     mv_group = exec_group.add_mutually_exclusive_group()
     mv_group.add_argument("-g", "--git-mv", action="store_const",
                           const='git mv', dest='mv_cmd',
-                          help="Use git mv instead of regular mv for renaming")
+                          help="Use git mv for renaming")
     mv_group.add_argument("-m", "--mv-cmd", action="store", metavar="cmd",
                           dest="mv_cmd",
-                          help="Specify a command to use for renaming "
-                          "instead of mv")
+                          help="Specify a command to use for renaming")
 
     date_group = parser.add_argument_group("Date options")
     date_group.add_argument("-d", "--date-source", action="store",
@@ -258,7 +265,7 @@ if __name__ == "__main__":
         # Defaults don't work in a mutually exclusive group, so we
         # have to apply config or defaults here.
         if not args.mv_cmd:
-            args.mv_cmd = config.get(exec_group.title, 'mv_cmd', fallback='mv')
+            args.mv_cmd = config.get(exec_group.title, 'mv_cmd', fallback=None)
 
     except CommandLineParseException as e:
         print(e, file=sys.stderr)
