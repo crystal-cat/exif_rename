@@ -152,13 +152,6 @@ def main(args):
             print('unmodified (no more date sources)')
             logger.log(e)
 
-def parse_move_command(args):
-    if args.git_mv:
-        if args.mv_cmd_raw != "mv":
-            raise CommandLineParseException("Conflicting options specified: -g and -m")
-        return "git mv"
-
-    return args.mv_cmd_raw
 
 def parse_date_sources(args):
     sources = args.date_source_str.split(',')
@@ -169,6 +162,7 @@ def parse_date_sources(args):
             raise CommandLineParseException('You have to specify "--source-name-format" to use the "file-name" source.')
 
     return sources
+
 
 if __name__ == "__main__":
     config = configparser.ConfigParser()
@@ -198,16 +192,14 @@ if __name__ == "__main__":
                                                       fallback=False),
                             help="Stop to wait for user input if an error "
                             "occurs.")
-    exec_group.add_argument("-g", "--git-mv", action="store_true",
-                            default=False,
-                            help="Use git mv instead of regular mv for "
-                            "renaming")
-    exec_group.add_argument("-m", "--mv-cmd", action="store", metavar="cmd",
-                            default=config.get(exec_group.title, 'mv_cmd',
-                                               fallback='mv'),
-                            dest="mv_cmd_raw",
-                            help="Specify a command to use for renaming "
-                            "instead of mv")
+    mv_group = exec_group.add_mutually_exclusive_group()
+    mv_group.add_argument("-g", "--git-mv", action="store_const",
+                          const='git mv', dest='mv_cmd',
+                          help="Use git mv instead of regular mv for renaming")
+    mv_group.add_argument("-m", "--mv-cmd", action="store", metavar="cmd",
+                          dest="mv_cmd",
+                          help="Specify a command to use for renaming "
+                          "instead of mv")
 
     date_group = parser.add_argument_group("Date options")
     date_group.add_argument("-d", "--date-source", action="store",
@@ -252,8 +244,11 @@ if __name__ == "__main__":
 
     try:
         # Do additional parsing
-        args.mv_cmd = parse_move_command(args)
         args.date_sources = parse_date_sources(args)
+        # Defaults don't work in a mutually exclusive group, so we
+        # have to apply config or defaults here.
+        if not args.mv_cmd:
+            args.mv_cmd = config.get(exec_group.title, 'mv_cmd', fallback='mv')
 
     except CommandLineParseException as e:
         print(e, file=sys.stderr)
