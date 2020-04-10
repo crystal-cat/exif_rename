@@ -16,8 +16,10 @@ Written by Krista Karppinen, based on a bash script by Fiona Klute.
 """
 
 import argparse
+import configparser
 import datetime
 import os
+import os.path
 import piexif
 import re
 import subprocess
@@ -199,6 +201,16 @@ if __name__ == "__main__":
         import argcomplete
         argcomplete.autocomplete(parser)
     except ImportError:
+        pass
+
+    try:
+        with open(os.path.expanduser('~/.exif_rename.conf')) as conffile:
+            config = configparser.ConfigParser(interpolation=None)
+            config.read_file(conffile)
+        parser.set_defaults(**config[date_group.title],
+                            **config[exec_group.title])
+    except FileNotFoundError:
+        # It's okay if there is no config file.
         pass
 
     args = parser.parse_args()
