@@ -23,6 +23,7 @@ import os.path
 import piexif
 import re
 import subprocess
+import struct
 import sys
 
 
@@ -79,6 +80,8 @@ def get_exif_timestamp(filename):
         exif_dict = piexif.load(filename)
     except piexif.InvalidImageDataError as e:
         raise TimestampReadException(str(e))
+    except struct.error as e:
+        raise TimestampReadException("Possibly corrupt EXIF data ({0})".format(str(e)))
 
     if len(exif_dict["Exif"]) == 0:
         raise TimestampReadException("File {0} does not contain any EXIF data!".format(filename))
@@ -275,4 +278,6 @@ if __name__ == "__main__":
         main(args)
     except KeyboardInterrupt:
         print()        # Be nice and finish the line with ^C ;)
+        sys.exit(2)
+    except BrokenPipeError:
         sys.exit(2)
