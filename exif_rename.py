@@ -8,7 +8,7 @@ A tool for batch renaming image files based on their (creation) date.
 __author__ = "Krista Karppinen"
 __version__ = "0.9.0"
 __copyright__ = "Copyright (C) 2020 Krista Karppinen"
-__license__  = """License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.
+__license__ = """License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.
 This is free software: you are free to change and redistribute it.
 There is NO WARRANTY, to the extent permitted by law.
 
@@ -40,17 +40,21 @@ class StderrLogger:
         self.log_without_pause(error_str)
         input()
 
+
 class TimestampReadException(Exception):
     pass
 
+
 class CommandLineParseException(Exception):
     pass
+
 
 simulated_filelist = []
 def find_unique_filename(basename, extension, simulate):
     index = 1
     candidate = basename + "." + extension
-    while os.path.exists(candidate) or ( simulate and candidate in simulated_filelist ):
+    while os.path.exists(candidate) \
+          or (simulate and candidate in simulated_filelist):
         candidate = "{0}-{1}.{2}".format(basename, index, extension)
         index += 1
 
@@ -59,6 +63,7 @@ def find_unique_filename(basename, extension, simulate):
 
     return candidate
 
+
 def matches_timestamp(filename, timestamp, extension):
     if (timestamp + "." + extension) == filename:
         return True
@@ -66,6 +71,7 @@ def matches_timestamp(filename, timestamp, extension):
         return False
     midsection = filename[len(timestamp):-len(extension)]
     return re.match("-\\d+", midsection) != None
+
 
 exif_date_pattern = re.compile('^(\\d{4}):(\\d{2}):(\\d{2}) (\\d{2}):(\\d{2}):(\\d{2})$')
 def get_exif_timestamp(filename):
@@ -83,15 +89,18 @@ def get_exif_timestamp(filename):
     datetime_tuple = list(map(int, exif_date_pattern.match(datetime_str).groups()))
     return datetime.datetime(datetime_tuple[0], datetime_tuple[1], datetime_tuple[2], datetime_tuple[3], datetime_tuple[4], datetime_tuple[5])
 
+
 def get_filename_timestamp(filename, filename_format):
     try:
         return datetime.datetime.strptime(filename, filename_format)
     except ValueError:
         raise TimestampReadException("Filename didn't match the specified pattern")
 
+
 def get_stat_timestamp(filename, timestamp_type):
     statinfo = os.stat(filename)
     return datetime.datetime.fromtimestamp(getattr(statinfo, timestamp_type))
+
 
 def get_timestamp(filename, args):
     exceptions = []
@@ -113,6 +122,7 @@ def get_timestamp(filename, args):
             raise ValueError('Unknown date source: ' + date_source)
 
     raise TimestampReadException('\n'.join(exceptions))
+
 
 def main(args):
     ext = "jpg"
@@ -176,7 +186,7 @@ if __name__ == "__main__":
     default_dateformat = "%Y-%m-%d_%H.%M.%S"
     default_dateformat_help = default_dateformat.replace('%', '%%')
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter)
-    
+
     # Files to process
     parser.add_argument("files", nargs="+", metavar="FILE", help="List of files to process")
 
@@ -259,4 +269,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print()        # Be nice and finish the line with ^C ;)
         sys.exit(2)
-
