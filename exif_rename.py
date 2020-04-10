@@ -171,6 +171,14 @@ def parse_date_sources(args):
     return sources
 
 if __name__ == "__main__":
+    config = configparser.ConfigParser()
+    try:
+        with open(os.path.expanduser('~/.exif_rename.conf')) as conffile:
+            config.read_file(conffile)
+    except FileNotFoundError:
+        # It's okay if there is no config file.
+        pass
+
     default_dateformat = "%Y-%m-%d_%H.%M.%S"
     default_dateformat_help = default_dateformat.replace('%', '%%')
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -179,16 +187,53 @@ if __name__ == "__main__":
     parser.add_argument("files", nargs="+", metavar="FILE", help="List of files to process")
 
     exec_group = parser.add_argument_group("Program execution")
-    exec_group.add_argument("-s", "-n", "--simulate", "--dry-run", dest="simulate", action="store_true", default=False, help="Simulate only (print what would be done, don't do anything)")
-    exec_group.add_argument("-p", "--pause-on-error", action="store_true", default=False, help="Stop to wait for user input if an error occurs.")
-    exec_group.add_argument("-g", "--git-mv", action="store_true", default=False, help="Use git mv instead of regular mv for renaming")
-    exec_group.add_argument("-m", "--mv-cmd", action="store", metavar="cmd", default="mv", dest="mv_cmd_raw", help="Specify a command to use for renaming instead of mv")
+    exec_group.add_argument("-s", "-n", "--simulate", "--dry-run",
+                            dest="simulate", action="store_true",
+                            default=False,
+                            help="Simulate only (print what would be done, "
+                            "don't do anything)")
+    exec_group.add_argument("-p", "--pause-on-error", action="store_true",
+                            default=config.getboolean(exec_group.title,
+                                                      'pause_on_error',
+                                                      fallback=False),
+                            help="Stop to wait for user input if an error "
+                            "occurs.")
+    exec_group.add_argument("-g", "--git-mv", action="store_true",
+                            default=False,
+                            help="Use git mv instead of regular mv for "
+                            "renaming")
+    exec_group.add_argument("-m", "--mv-cmd", action="store", metavar="cmd",
+                            default=config.get(exec_group.title, 'mv_cmd',
+                                               fallback='mv'),
+                            dest="mv_cmd_raw",
+                            help="Specify a command to use for renaming "
+                            "instead of mv")
 
     date_group = parser.add_argument_group("Date options")
-    date_group.add_argument("-d", "--date-source", action="store", dest="date_source_str", metavar="src", default="exif", help="Specify the date source(s) to try in order, comma-separated (exif, file-name, file-created, file-modified)")
-    date_group.add_argument("-f", "--date-format", action="store", metavar="fmt", default=default_dateformat, help="Specify a custom date format (default " + default_dateformat_help + ", see man (3) strftime for the format specification)")
-    date_group.add_argument("--source-name-format", action="store", metavar="fmt", default=None, help="Specify a source file name format for file-name source. See man (3) strftime for the format specification.")
-    
+    date_group.add_argument("-d", "--date-source", action="store",
+                            dest="date_source_str", metavar="src",
+                            default=config.get(date_group.title, 'date_source',
+                                               fallback='exif'),
+                            help="Specify the date source(s) to try in order, "
+                            "comma-separated (exif, file-name, file-created, "
+                            "file-modified)")
+    date_group.add_argument("-f", "--date-format", action="store",
+                            metavar="fmt",
+                            default=config.get(date_group.title, 'date_format',
+                                               raw=True,
+                                               fallback=default_dateformat),
+                            help="Specify a custom date format (default "
+                            + default_dateformat_help + ", see man (3) "
+                            "strftime for the format specification)")
+    date_group.add_argument("--source-name-format", action="store",
+                            metavar="fmt",
+                            default=config.get(date_group.title,
+                                               'source_name_format',
+                                               raw=True, fallback=None),
+                            help="Specify a source file name format for "
+                            "file-name source. See man (3) strftime for the "
+                            "format specification.")
+
     # Specify output of "--version"
     parser.add_argument(
         "--version",
@@ -201,16 +246,6 @@ if __name__ == "__main__":
         import argcomplete
         argcomplete.autocomplete(parser)
     except ImportError:
-        pass
-
-    try:
-        with open(os.path.expanduser('~/.exif_rename.conf')) as conffile:
-            config = configparser.ConfigParser(interpolation=None)
-            config.read_file(conffile)
-        parser.set_defaults(**config[date_group.title],
-                            **config[exec_group.title])
-    except FileNotFoundError:
-        # It's okay if there is no config file.
         pass
 
     args = parser.parse_args()
