@@ -19,7 +19,6 @@ import argparse
 import configparser
 import datetime
 import os
-import os.path
 import piexif
 import re
 import subprocess
@@ -191,7 +190,7 @@ def parse_date_sources(args):
 if __name__ == "__main__":
     config = configparser.ConfigParser()
     try:
-        with open(os.path.expanduser('~/.exif_rename.conf')) as conffile:
+        with open(Path('~/.exif_rename.conf').expanduser()) as conffile:
             config.read_file(conffile)
     except FileNotFoundError:
         # It's okay if there is no config file.
