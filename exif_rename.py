@@ -51,12 +51,13 @@ class CommandLineParseException(Exception):
 
 
 simulated_filelist = []
-def find_unique_filename(dir, basename, extension, simulate):
+def find_unique_filename(src, basename, extension, simulate):
+    dir = src.parent
     index = 1
-    candidate = dir.joinpath(f'{basename}.{extension}')
+    candidate = dir.joinpath(f'{basename}{extension}')
     while candidate.exists() \
           or (simulate and candidate in simulated_filelist):
-        candidate = dir.joinpath(f'{basename}-{index}.{extension}')
+        candidate = dir.joinpath(f'{basename}-{index}{extension}')
         index += 1
 
     if simulate:
@@ -66,7 +67,7 @@ def find_unique_filename(dir, basename, extension, simulate):
 
 
 def matches_timestamp(filename, timestamp, extension):
-    if (timestamp + "." + extension) == filename:
+    if (timestamp + extension) == filename:
         return True
     if not filename.startswith(timestamp) or not filename.endswith(extension):
         return False
@@ -139,7 +140,6 @@ def get_timestamp(file, args):
 
 
 def main(args):
-    ext = "jpg"
     cmd_list = None
     if args.mv_cmd:
         cmd_list = args.mv_cmd.split()
@@ -161,11 +161,12 @@ def main(args):
         try:
             (date_source, dt) = get_timestamp(file, args)
             formatted_date = dt.strftime(args.date_format)
+            ext = file.suffix.lower()
             if matches_timestamp(file.name, formatted_date, ext):
                 print("unmodified (file name already matches)")
                 continue
 
-            dest_file = find_unique_filename(file.parent, formatted_date,
+            dest_file = find_unique_filename(file, formatted_date,
                                              ext, args.simulate)
             print(f'-({date_source})-> {dest_file}')
 
