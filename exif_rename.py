@@ -25,6 +25,7 @@ import re
 import subprocess
 import struct
 import sys
+from pathlib import Path
 
 
 class StderrLogger:
@@ -100,27 +101,29 @@ def get_filename_timestamp(filename, filename_format):
         raise TimestampReadException("Filename didn't match the specified pattern")
 
 
-def get_stat_timestamp(filename, timestamp_type):
-    statinfo = os.stat(filename)
+def get_stat_timestamp(file, timestamp_type):
+    statinfo = file.stat()
     return datetime.datetime.fromtimestamp(getattr(statinfo, timestamp_type))
 
 
-def get_timestamp(filename, args):
+def get_timestamp(file, args):
     exceptions = []
 
     for date_source in args.date_sources:
         if date_source == 'exif':
             try:
-                return (date_source, get_exif_timestamp(filename))
+                return (date_source, get_exif_timestamp(str(file)))
             except TimestampReadException as e:
                 exceptions.append(str(e))
 
         elif date_source == 'file-name':
-            return (date_source, get_filename_timestamp(filename, args.source_name_format))
+            return (date_source,
+                    get_filename_timestamp(file.name,
+                                           args.source_name_format))
         elif date_source == 'file-created':
-            return (date_source, get_stat_timestamp(filename, 'st_ctime'))
+            return (date_source, get_stat_timestamp(file, 'st_ctime'))
         elif date_source == 'file-modified':
-            return (date_source, get_stat_timestamp(filename, 'st_mtime'))
+            return (date_source, get_stat_timestamp(file, 'st_mtime'))
         else:
             raise ValueError('Unknown date source: ' + date_source)
 
@@ -134,40 +137,39 @@ def main(args):
         cmd_list = args.mv_cmd.split()
     logger = StderrLogger(pause_on_error=args.pause_on_error)
 
-    for filename in args.files:
-        sys.stdout.write(filename)
-        sys.stdout.write(' ')
+    for file in args.files:
+        print(f'{file} ', end='')
 
-        if os.path.isdir(filename):
+        if file.is_dir():
             print("unmodified (is a directory)")
-            logger.log("Skipping {0} (is a directory)".format(filename))
+            logger.log(f'Skipping {file} (is a directory)')
             continue
 
-        if not os.path.isfile(filename):
+        if not file.is_file():
             print("unmodified (could not find file)")
-            logger.log("Could not find file: {0}".format(filename))
+            logger.log(f'Could not find file: {file}')
             continue
 
         try:
-            (date_source, dt) = get_timestamp(filename, args)
+            (date_source, dt) = get_timestamp(file, args)
             formatted_date = dt.strftime(args.date_format)
-            if matches_timestamp(filename, formatted_date, ext):
-                print("unmodified (file name already matches)".format(filename))
+            if matches_timestamp(file.name, formatted_date, ext):
+                print("unmodified (file name already matches)")
                 continue
 
             to_filename = find_unique_filename(formatted_date, ext, args.simulate)
-            print("-({0})-> {1}".format(date_source, to_filename))
+            print(f'-({date_source})-> {to_filename}')
 
             if args.simulate:
                 if args.mv_cmd:
-                    print(f'{args.mv_cmd} "{filename}" "{to_filename}"')
+                    print(f'{args.mv_cmd} "{file}" "{to_filename}"')
                 else:
-                    print(f'os.rename("{filename}", "{to_filename}")')
+                    print(f'{file!r}.rename("{to_filename}")')
             else:
                 if args.mv_cmd:
-                    subprocess.run(cmd_list + [filename, to_filename])
+                    subprocess.run(cmd_list + [file, to_filename])
                 else:
-                    os.rename(filename, to_filename)
+                    file.rename(to_filename)
 
         except TimestampReadException as e:
             print('unmodified (no more date sources)')
@@ -199,7 +201,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter)
 
     # Files to process
-    parser.add_argument("files", nargs="+", metavar="FILE", help="List of files to process")
+    parser.add_argument("files", nargs="+", metavar="FILE", type=Path,
+                        help="List of files to process")
 
     exec_group = parser.add_argument_group("Program execution")
     exec_group.add_argument("-s", "-n", "--simulate", "--dry-run",
