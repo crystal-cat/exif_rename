@@ -52,12 +52,12 @@ class CommandLineParseException(Exception):
 
 
 simulated_filelist = []
-def find_unique_filename(basename, extension, simulate):
+def find_unique_filename(dir, basename, extension, simulate):
     index = 1
-    candidate = basename + "." + extension
-    while os.path.exists(candidate) \
+    candidate = dir.joinpath(f'{basename}.{extension}')
+    while candidate.exists() \
           or (simulate and candidate in simulated_filelist):
-        candidate = "{0}-{1}.{2}".format(basename, index, extension)
+        candidate = dir.joinpath(f'{basename}-{index}.{extension}')
         index += 1
 
     if simulate:
@@ -157,19 +157,20 @@ def main(args):
                 print("unmodified (file name already matches)")
                 continue
 
-            to_filename = find_unique_filename(formatted_date, ext, args.simulate)
-            print(f'-({date_source})-> {to_filename}')
+            dest_file = find_unique_filename(file.parent, formatted_date,
+                                               ext, args.simulate)
+            print(f'-({date_source})-> {dest_file}')
 
             if args.simulate:
                 if args.mv_cmd:
-                    print(f'{args.mv_cmd} "{file}" "{to_filename}"')
+                    print(f'{args.mv_cmd} "{file}" "{dest_file}"')
                 else:
-                    print(f'{file!r}.rename("{to_filename}")')
+                    print(f'{file!r}.rename(\'{dest_file}\')')
             else:
                 if args.mv_cmd:
-                    subprocess.run(cmd_list + [file, to_filename])
+                    subprocess.run(cmd_list + [file, dest_file])
                 else:
-                    file.rename(to_filename)
+                    file.rename(dest_file)
 
         except TimestampReadException as e:
             print('unmodified (no more date sources)')
