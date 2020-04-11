@@ -8,7 +8,8 @@ A tool for batch renaming image files based on their (creation) date.
 __author__ = "Krista Karppinen"
 __version__ = "0.9.0"
 __copyright__ = "Copyright (C) 2020 Krista Karppinen"
-__license__ = """License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.
+__license__ = """
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.
 This is free software: you are free to change and redistribute it.
 There is NO WARRANTY, to the extent permitted by law.
 
@@ -18,7 +19,6 @@ Written by Krista Karppinen, based on a bash script by Fiona Klute.
 import argparse
 import configparser
 import datetime
-import os
 import piexif
 import re
 import subprocess
@@ -71,33 +71,42 @@ def matches_timestamp(filename, timestamp, extension):
     if not filename.startswith(timestamp) or not filename.endswith(extension):
         return False
     midsection = filename[len(timestamp):-len(extension)]
-    return re.match("-\\d+", midsection) != None
+    return re.match("-\\d+", midsection) is not None
 
 
-exif_date_pattern = re.compile('^(\\d{4}):(\\d{2}):(\\d{2}) (\\d{2}):(\\d{2}):(\\d{2})$')
+exif_date_pattern = \
+    re.compile('^(\\d{4}):(\\d{2}):(\\d{2}) (\\d{2}):(\\d{2}):(\\d{2})$')
+
 def get_exif_timestamp(filename):
     try:
         exif_dict = piexif.load(filename)
     except piexif.InvalidImageDataError as e:
         raise TimestampReadException(str(e))
     except struct.error as e:
-        raise TimestampReadException("Possibly corrupt EXIF data ({0})".format(str(e)))
+        raise TimestampReadException(f"Possibly corrupt EXIF data ({e})")
 
     if len(exif_dict["Exif"]) == 0:
-        raise TimestampReadException("File {0} does not contain any EXIF data!".format(filename))
-    if not piexif.ExifIFD.DateTimeDigitized in exif_dict["Exif"]:
-        raise TimestampReadException("File {0} does not contain an EXIF timestamp.".format(filename))
+        raise TimestampReadException(
+            f"File {filename} does not contain any EXIF data!")
+
+    if piexif.ExifIFD.DateTimeDigitized not in exif_dict["Exif"]:
+        raise TimestampReadException(
+            "File {filename} does not contain an EXIF timestamp.")
 
     datetime_str = exif_dict["Exif"][piexif.ExifIFD.DateTimeDigitized].decode()
-    datetime_tuple = list(map(int, exif_date_pattern.match(datetime_str).groups()))
-    return datetime.datetime(datetime_tuple[0], datetime_tuple[1], datetime_tuple[2], datetime_tuple[3], datetime_tuple[4], datetime_tuple[5])
+    datetime_match = exif_date_pattern.match(datetime_str).groups()
+    datetime_tuple = list(map(int, datetime_match))
+    return datetime.datetime(
+            datetime_tuple[0], datetime_tuple[1], datetime_tuple[2],
+            datetime_tuple[3], datetime_tuple[4], datetime_tuple[5])
 
 
 def get_filename_timestamp(filename, filename_format):
     try:
         return datetime.datetime.strptime(filename, filename_format)
     except ValueError:
-        raise TimestampReadException("Filename didn't match the specified pattern")
+        raise TimestampReadException(
+            "Filename didn't match the specified pattern")
 
 
 def get_stat_timestamp(file, timestamp_type):
@@ -157,7 +166,7 @@ def main(args):
                 continue
 
             dest_file = find_unique_filename(file.parent, formatted_date,
-                                               ext, args.simulate)
+                                             ext, args.simulate)
             print(f'-({date_source})-> {dest_file}')
 
             if args.simulate:
@@ -177,12 +186,15 @@ def main(args):
 
 
 def parse_date_sources(args):
+    accepted_sources = ('exif', 'file-name', 'file-created', 'file-modified')
     sources = args.date_source_str.split(',')
     for source in sources:
-        if source not in ('exif', 'file-name', 'file-created', 'file-modified'):
+        if source not in accepted_sources:
             raise CommandLineParseException('Unknown date source: ' + source)
-        if source == 'file-name' and args.source_name_format == None:
-            raise CommandLineParseException('You have to specify "--source-name-format" to use the "file-name" source.')
+        if source == 'file-name' and args.source_name_format is None:
+            raise CommandLineParseException(
+                'You have to specify "--source-name-format to use the '
+                '"file-name" source.')
 
     return sources
 
@@ -198,7 +210,8 @@ if __name__ == "__main__":
 
     default_dateformat = "%Y-%m-%d_%H.%M.%S"
     default_dateformat_help = default_dateformat.replace('%', '%%')
-    parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter)
 
     # Files to process
     parser.add_argument("files", nargs="+", metavar="FILE", type=Path,
