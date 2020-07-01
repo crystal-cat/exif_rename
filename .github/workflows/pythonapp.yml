@@ -18,9 +18,13 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-    - name: Install flake8
+    - name: Install checking tools
       run: |
-        pip install flake8
+        pip install flake8 coverage
+    - name: Run test and report coverage
+      run: |
+        coverage run test.py
+        coverage report -m *.py
     - name: Check for syntax errors and undefined names
       run: |
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
