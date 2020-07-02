@@ -119,22 +119,21 @@ def get_timestamp(file, args):
     exceptions = []
 
     for date_source in args.date_sources:
-        if date_source == 'exif':
-            try:
+        try:
+            if date_source == 'exif':
                 return (date_source, get_exif_timestamp(str(file)))
-            except TimestampReadException as e:
-                exceptions.append(str(e))
-
-        elif date_source == 'file-name':
-            return (date_source,
-                    get_filename_timestamp(file.name,
-                                           args.source_name_format))
-        elif date_source == 'file-created':
-            return (date_source, get_stat_timestamp(file, 'st_ctime'))
-        elif date_source == 'file-modified':
-            return (date_source, get_stat_timestamp(file, 'st_mtime'))
-        else:
-            raise ValueError('Unknown date source: ' + date_source)
+            elif date_source == 'file-name':
+                return (date_source,
+                        get_filename_timestamp(file.name,
+                                               args.source_name_format))
+            elif date_source == 'file-created':
+                return (date_source, get_stat_timestamp(file, 'st_ctime'))
+            elif date_source == 'file-modified':
+                return (date_source, get_stat_timestamp(file, 'st_mtime'))
+            else:
+                raise ValueError('Unknown date source: ' + date_source)
+        except TimestampReadException as e:
+            exceptions.append(str(e))
 
     raise TimestampReadException('\n'.join(exceptions))
 
