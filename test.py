@@ -130,7 +130,8 @@ class MoveTest(unittest.TestCase):
 
     def setUp(self):
         self.tempdir = TemporaryDirectory()
-        shutil.copytree(datadir, self.tempdir.name, dirs_exist_ok=True)
+        for f in self.mapping:
+            shutil.copy2(f, self.tempdir.name)
         filelist = [x for x in Path(self.tempdir.name).iterdir()
                     if x.suffix == '.jpg']
         self.args = args_mock(filelist, ['exif', 'file-name'])
