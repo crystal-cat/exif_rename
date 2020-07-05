@@ -2,6 +2,7 @@
 import exif_rename
 import hashlib
 import itertools
+import logging
 import shutil
 import unittest
 from datetime import datetime
@@ -229,4 +230,5 @@ class MoveTest(unittest.TestCase):
 
 
 if __name__ == '__main__':
+    logging.basicConfig(format='%(filename)s:%(lineno)s: %(message)s', level=logging.DEBUG)
     unittest.main(verbosity=2)

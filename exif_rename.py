@@ -19,6 +19,7 @@ Written by Krista Karppinen, based on a bash script by Fiona Klute.
 import argparse
 import configparser
 import datetime
+import logging
 import piexif
 import re
 import subprocess
@@ -26,21 +27,6 @@ import struct
 import sys
 from collections import ChainMap, namedtuple
 from pathlib import Path
-
-
-class StderrLogger:
-    def __init__(self, pause_on_error=False):
-        if pause_on_error:
-            self.log = self.log_with_pause
-        else:
-            self.log = self.log_without_pause
-
-    def log_without_pause(self, error_str):
-        print(error_str, file=sys.stderr)
-
-    def log_with_pause(self, error_str):
-        self.log_without_pause(error_str)
-        input()
 
 
 class TimestampReadException(Exception):
@@ -139,19 +125,15 @@ class Renamer:
             self.mv_cmd = None
 
     def run(self):
-        logger = StderrLogger(pause_on_error=self.args['pause_on_error'])
+        logger = logging.getLogger(__name__)
 
         for file in self.args['files']:
-            print(f'{file} ', end='')
-
             if file.is_dir():
-                print("unmodified (is a directory)")
-                logger.log(f'Skipping {file} (is a directory)')
+                logger.info('Skipping %s (is a directory)', file)
                 continue
 
             if not file.is_file():
-                print("unmodified (could not find file)")
-                logger.log(f'Could not find file: {file}')
+                logger.error('Could not find file: %s', file)
                 continue
 
             try:
@@ -159,18 +141,20 @@ class Renamer:
                 formatted_date = dt.strftime(self.args['date_format'])
                 ext = file.suffix.lower()
                 if matches_timestamp(file.name, formatted_date, ext):
-                    print("unmodified (file name already matches)")
+                    logger.debug('%s unmodified (file name already matches)',
+                                 file)
                     continue
 
                 dest_file = self.find_unique_filename(file, formatted_date,
                                                       ext)
-                print(f'-({date_source})-> {dest_file}')
+                logger.info('%s -(%s)-> %s', file, date_source, dest_file)
 
                 if self.simulate:
                     if self.mv_cmd:
-                        print(f'{self.mv_cmd} "{file}" "{dest_file}"')
+                        logger.debug('%s "%s" "%s"',
+                                     self.mv_cmd, file, dest_file)
                     else:
-                        print(f'{file!r}.rename(\'{dest_file}\')')
+                        logger.debug('%r.rename(\'%s\')', file, dest_file)
                 else:
                     if self.mv_cmd:
                         subprocess.run(self.mv_cmd + [file, dest_file])
@@ -178,8 +162,8 @@ class Renamer:
                         file.rename(dest_file)
 
             except TimestampReadException as e:
-                print('unmodified (no more date sources)')
-                logger.log(e)
+                logger.error('%s unmodified (no usable date source): %s',
+                             file, e)
 
     def find_unique_filename(self, src, basename, extension):
         dir = src.parent
@@ -216,7 +200,8 @@ default_conf = {
     'date_source': 'exif',
     'date_format': default_dateformat,
     'source_name_format': None,
-    'mv_cmd': None
+    'mv_cmd': None,
+    'log': logging.INFO
 }
 
 
@@ -293,6 +278,14 @@ def main(command_line):
                             "file-name source. See man (3) strftime for the "
                             "format specification.")
 
+    log_group = parser.add_mutually_exclusive_group()
+    log_group.add_argument('-q', '--quiet', action='store_const',
+                           const=logging.WARNING, dest='log',
+                           help='Log only warning and errors')
+    log_group.add_argument('-D', '--debug', action='store_const',
+                           const=logging.DEBUG, dest='log',
+                           help='Log debug info')
+
     # Specify output of "--version"
     parser.add_argument(
         "--version",
@@ -325,6 +318,7 @@ def main(command_line):
         print(e, file=sys.stderr)
         sys.exit(1)
 
+    logging.basicConfig(format='%(message)s', level=combined_args['log'])
     try:
         r = Renamer(combined_args)
         r.run()
