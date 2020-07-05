@@ -78,6 +78,16 @@ class TimestampTest(unittest.TestCase):
                           datadir / 'sammy_sleepy.jpg',
                           self.args)
 
+    def test_match_numbers(self):
+        timestamp = '20191027_121401'
+        ext = '.jpg'
+        self.assertTrue(exif_rename.matches_timestamp(
+            f'{timestamp}{ext}', timestamp, ext))
+        for i in range(1, 20):
+            with self.subTest(i=i):
+                self.assertTrue(exif_rename.matches_timestamp(
+                    f'{timestamp}-{i}{ext}', timestamp, ext))
+
 
 class ConfigTest(unittest.TestCase):
     def setUp(self):

@@ -73,7 +73,7 @@ def matches_timestamp(filename, timestamp, extension):
     if not filename.startswith(timestamp) or not filename.endswith(extension):
         return False
     midsection = filename[len(timestamp):-len(extension)]
-    return re.match("-\\d+", midsection) is not None
+    return re.match(r'-\d+', midsection) is not None
 
 
 exif_date_pattern = \
