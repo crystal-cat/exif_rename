@@ -3,11 +3,13 @@ import exif_rename
 import hashlib
 import itertools
 import logging
+import shlex
 import shutil
+import sys
+import tempfile
 import unittest
 from datetime import datetime
 from pathlib import Path
-from tempfile import TemporaryDirectory
 
 datadir = Path(__file__).parent / 'test_data'
 
@@ -184,7 +186,7 @@ class MoveTest(unittest.TestCase):
         cls.hashes = cls.hash_files(cls.mapping)
 
     def setUp(self):
-        self.tempdir = TemporaryDirectory()
+        self.tempdir = tempfile.TemporaryDirectory()
         for f in self.mapping:
             if not f.is_dir():
                 shutil.copy2(f, self.tempdir.name)
@@ -200,6 +202,36 @@ class MoveTest(unittest.TestCase):
         r = exif_rename.Renamer(self.args)
         r.run()
         self.check_move()
+
+    def test_renamer_mv_cmd(self):
+        """Use test_data/script/mv_log.py to move the files. It logs all
+        "src dst" pairs to the given logfile, so we can verify it
+        really was the script that moved the files.
+
+        """
+        with tempfile.NamedTemporaryFile() as log:
+            self.args['mv_cmd'] = \
+                (f'{shlex.quote(sys.executable)} '
+                 f'{shlex.quote(str(datadir / "script" / "mv_log.py"))} '
+                 f'{shlex.quote(log.name)}')
+            r = exif_rename.Renamer(self.args)
+            r.run()
+            logdata = log.read().decode()
+
+        self.check_move()
+        tempdir = Path(self.tempdir.name)
+        # Replace keys in self.mapping with source file basenames, and
+        # remove files not expected to move
+        mapping = dict((k.name, v) for k, v in self.mapping.items()
+                       if [k.name] != v)
+        found = 0
+        for src, dst in ([Path(p) for p in l.split()]
+                         for l in logdata.splitlines()):
+            self.assertEqual(src.parent, tempdir)
+            self.assertEqual(dst.parent, tempdir)
+            self.assertTrue(dst.name in mapping[src.name])
+            found += 1
+        self.assertEqual(found, len(mapping))
 
     def test_renamer_no_sources(self):
         # this way there will be no valid timestamp source for
