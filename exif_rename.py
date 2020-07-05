@@ -77,7 +77,8 @@ def matches_timestamp(filename, timestamp, extension):
 
 
 exif_date_pattern = \
-    re.compile('^(\\d{4}):(\\d{2}):(\\d{2}) (\\d{2}):(\\d{2}):(\\d{2})$')
+    re.compile(r'^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})$')
+
 
 def get_exif_timestamp(filename):
     try:
