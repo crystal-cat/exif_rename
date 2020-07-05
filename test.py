@@ -184,15 +184,26 @@ class MoveTest(unittest.TestCase):
     def tearDown(self):
         self.tempdir.cleanup()
 
-    def test_main(self):
-        exif_rename.main(self.args)
+    def test_renamer(self):
+        r = exif_rename.Renamer(self.args)
+        r.run()
         self.check_move()
 
-    def test_main_no_sources(self):
+    def test_renamer_no_sources(self):
         # this way there will be no valid timestamp source for
         # 20191027_121401.jpg
         self.args['date_sources'] = ['exif']
-        exif_rename.main(self.args)
+        r = exif_rename.Renamer(self.args)
+        r.run()
+        self.check_move()
+
+    def test_main(self):
+        # Exact command line parameters!
+        args = ['--date-source', 'exif,file-name',
+                '--source-name-format', '%Y%m%d_%H%M%S.jpg',
+                '--date-format', '%Y%m%d_%H%M%S']
+        args.extend(str(f) for f in self.args['files'])
+        exif_rename.main(args)
         self.check_move()
 
 

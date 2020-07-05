@@ -51,22 +51,6 @@ class CommandLineParseException(Exception):
     pass
 
 
-simulated_filelist = []
-def find_unique_filename(src, basename, extension, simulate):
-    dir = src.parent
-    index = 1
-    candidate = dir.joinpath(f'{basename}{extension}')
-    while candidate.exists() \
-          or (simulate and candidate in simulated_filelist):
-        candidate = dir.joinpath(f'{basename}-{index}{extension}')
-        index += 1
-
-    if simulate:
-        simulated_filelist.append(candidate)
-
-    return candidate
-
-
 def matches_timestamp(filename, timestamp, extension):
     if (timestamp + extension) == filename:
         return True
@@ -140,51 +124,76 @@ def get_timestamp(file, args):
     raise TimestampReadException('\n'.join(exceptions))
 
 
-def main(args):
-    cmd_list = None
-    if args['mv_cmd']:
-        cmd_list = args['mv_cmd'].split()
-    logger = StderrLogger(pause_on_error=args['pause_on_error'])
+class Renamer:
+    """The main purpose of this class is to keep state while simulating
+    renaming. Additionally the constructor performs some parameter
+    restructuring.
+    """
+    def __init__(self, args):
+        self.args = args
+        self.simulate = args['simulate']
+        self.simulated_filelist = []
+        if args['mv_cmd']:
+            self.mv_cmd = args['mv_cmd'].split()
+        else:
+            self.mv_cmd = None
 
-    for file in args['files']:
-        print(f'{file} ', end='')
+    def run(self):
+        logger = StderrLogger(pause_on_error=self.args['pause_on_error'])
 
-        if file.is_dir():
-            print("unmodified (is a directory)")
-            logger.log(f'Skipping {file} (is a directory)')
-            continue
+        for file in self.args['files']:
+            print(f'{file} ', end='')
 
-        if not file.is_file():
-            print("unmodified (could not find file)")
-            logger.log(f'Could not find file: {file}')
-            continue
-
-        try:
-            (date_source, dt) = get_timestamp(file, args)
-            formatted_date = dt.strftime(args['date_format'])
-            ext = file.suffix.lower()
-            if matches_timestamp(file.name, formatted_date, ext):
-                print("unmodified (file name already matches)")
+            if file.is_dir():
+                print("unmodified (is a directory)")
+                logger.log(f'Skipping {file} (is a directory)')
                 continue
 
-            dest_file = find_unique_filename(file, formatted_date,
-                                             ext, args['simulate'])
-            print(f'-({date_source})-> {dest_file}')
+            if not file.is_file():
+                print("unmodified (could not find file)")
+                logger.log(f'Could not find file: {file}')
+                continue
 
-            if args['simulate']:
-                if args['mv_cmd']:
-                    print(f'{args["mv_cmd"]} "{file}" "{dest_file}"')
-                else:
-                    print(f'{file!r}.rename(\'{dest_file}\')')
-            else:
-                if args['mv_cmd']:
-                    subprocess.run(cmd_list + [file, dest_file])
-                else:
-                    file.rename(dest_file)
+            try:
+                (date_source, dt) = get_timestamp(file, self.args)
+                formatted_date = dt.strftime(self.args['date_format'])
+                ext = file.suffix.lower()
+                if matches_timestamp(file.name, formatted_date, ext):
+                    print("unmodified (file name already matches)")
+                    continue
 
-        except TimestampReadException as e:
-            print('unmodified (no more date sources)')
-            logger.log(e)
+                dest_file = self.find_unique_filename(file, formatted_date,
+                                                      ext)
+                print(f'-({date_source})-> {dest_file}')
+
+                if self.simulate:
+                    if self.mv_cmd:
+                        print(f'{self.mv_cmd} "{file}" "{dest_file}"')
+                    else:
+                        print(f'{file!r}.rename(\'{dest_file}\')')
+                else:
+                    if self.mv_cmd:
+                        subprocess.run(self.mv_cmd + [file, dest_file])
+                    else:
+                        file.rename(dest_file)
+
+            except TimestampReadException as e:
+                print('unmodified (no more date sources)')
+                logger.log(e)
+
+    def find_unique_filename(self, src, basename, extension):
+        dir = src.parent
+        index = 1
+        candidate = dir.joinpath(f'{basename}{extension}')
+        while candidate.exists() \
+              or (self.simulate and candidate in self.simulated_filelist):
+            candidate = dir.joinpath(f'{basename}-{index}{extension}')
+            index += 1
+
+        if self.simulate:
+            self.simulated_filelist.append(candidate)
+
+        return candidate
 
 
 def parse_date_sources(args):
@@ -241,7 +250,7 @@ def read_config(conffile):
     return result
 
 
-if __name__ == "__main__":
+def main(command_line):
     default_dateformat_help = default_dateformat.replace('%', '%%')
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -298,7 +307,7 @@ if __name__ == "__main__":
     except ImportError:
         pass
 
-    args = parser.parse_args()
+    args = parser.parse_args(args=command_line)
     cmd_args = {k: v for k, v in vars(args).items() if v is not None}
 
     try:
@@ -317,9 +326,14 @@ if __name__ == "__main__":
         sys.exit(1)
 
     try:
-        main(combined_args)
+        r = Renamer(combined_args)
+        r.run()
     except KeyboardInterrupt:
         print()        # Be nice and finish the line with ^C ;)
         sys.exit(2)
     except BrokenPipeError:
         sys.exit(2)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
