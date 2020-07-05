@@ -3,12 +3,13 @@ import exif_rename
 import hashlib
 import shutil
 import unittest
-from collections import namedtuple
 from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 datadir = Path(__file__).parent / 'test_data'
+
+
 def args_mock(**kwargs):
     args = dict({
         'files': [],
