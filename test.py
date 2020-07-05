@@ -116,18 +116,18 @@ class ConfigTest(unittest.TestCase):
 
     def test_empty_config(self):
         conf = exif_rename.read_config(datadir / 'config' / 'empty.conf')
-        self.assertEquals(conf, dict())
+        self.assertEqual(conf, dict())
 
     def test_full_config(self):
         conf = exif_rename.read_config(datadir / 'config' / 'full.conf')
-        self.assertEquals(conf,
-                          {
-                              'pause_on_error': True,
-                              'mv_cmd': 'meow',
-                              'date_format': '%Y%m%d_%H%M%S',
-                              'date_source': 'exif,file-name',
-                              'source_name_format': '%Y%m%d_%H%M%S'
-                          })
+        self.assertEqual(conf,
+                         {
+                             'pause_on_error': True,
+                             'mv_cmd': 'meow',
+                             'date_format': '%Y%m%d_%H%M%S',
+                             'date_source': 'exif,file-name',
+                             'source_name_format': '%Y%m%d_%H%M%S'
+                         })
 
 
 class MoveTest(unittest.TestCase):
