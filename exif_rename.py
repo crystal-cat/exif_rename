@@ -24,6 +24,7 @@ import re
 import subprocess
 import struct
 import sys
+from collections import ChainMap, namedtuple
 from pathlib import Path
 
 
@@ -118,14 +119,14 @@ def get_stat_timestamp(file, timestamp_type):
 def get_timestamp(file, args):
     exceptions = []
 
-    for date_source in args.date_sources:
+    for date_source in args['date_sources']:
         try:
             if date_source == 'exif':
                 return (date_source, get_exif_timestamp(str(file)))
             elif date_source == 'file-name':
                 return (date_source,
                         get_filename_timestamp(file.name,
-                                               args.source_name_format))
+                                               args['source_name_format']))
             elif date_source == 'file-created':
                 return (date_source, get_stat_timestamp(file, 'st_ctime'))
             elif date_source == 'file-modified':
@@ -140,11 +141,11 @@ def get_timestamp(file, args):
 
 def main(args):
     cmd_list = None
-    if args.mv_cmd:
-        cmd_list = args.mv_cmd.split()
-    logger = StderrLogger(pause_on_error=args.pause_on_error)
+    if args['mv_cmd']:
+        cmd_list = args['mv_cmd'].split()
+    logger = StderrLogger(pause_on_error=args['pause_on_error'])
 
-    for file in args.files:
+    for file in args['files']:
         print(f'{file} ', end='')
 
         if file.is_dir():
@@ -159,23 +160,23 @@ def main(args):
 
         try:
             (date_source, dt) = get_timestamp(file, args)
-            formatted_date = dt.strftime(args.date_format)
+            formatted_date = dt.strftime(args['date_format'])
             ext = file.suffix.lower()
             if matches_timestamp(file.name, formatted_date, ext):
                 print("unmodified (file name already matches)")
                 continue
 
             dest_file = find_unique_filename(file, formatted_date,
-                                             ext, args.simulate)
+                                             ext, args['simulate'])
             print(f'-({date_source})-> {dest_file}')
 
-            if args.simulate:
-                if args.mv_cmd:
-                    print(f'{args.mv_cmd} "{file}" "{dest_file}"')
+            if args['simulate']:
+                if args['mv_cmd']:
+                    print(f'{args["mv_cmd"]} "{file}" "{dest_file}"')
                 else:
                     print(f'{file!r}.rename(\'{dest_file}\')')
             else:
-                if args.mv_cmd:
+                if args['mv_cmd']:
                     subprocess.run(cmd_list + [file, dest_file])
                 else:
                     file.rename(dest_file)
@@ -187,11 +188,11 @@ def main(args):
 
 def parse_date_sources(args):
     accepted_sources = ('exif', 'file-name', 'file-created', 'file-modified')
-    sources = args.date_source_str.split(',')
+    sources = args['date_source'].split(',')
     for source in sources:
         if source not in accepted_sources:
             raise CommandLineParseException('Unknown date source: ' + source)
-        if source == 'file-name' and args.source_name_format is None:
+        if source == 'file-name' and args['source_name_format'] is None:
             raise CommandLineParseException(
                 'You have to specify "--source-name-format to use the '
                 '"file-name" source.')
@@ -199,16 +200,47 @@ def parse_date_sources(args):
     return sources
 
 
-if __name__ == "__main__":
-    config = configparser.ConfigParser()
-    try:
-        with open(Path('~/.exif_rename.conf').expanduser()) as conffile:
-            config.read_file(conffile)
-    except FileNotFoundError:
-        # It's okay if there is no config file.
-        pass
+default_dateformat = '%Y-%m-%d_%H.%M.%S'
+default_conf = {
+    'pause_on_error': False,
+    'date_source': 'exif',
+    'date_format': default_dateformat,
+    'source_name_format': None,
+    'mv_cmd': None
+}
 
-    default_dateformat = "%Y-%m-%d_%H.%M.%S"
+
+exec_group_title = 'Program execution'
+date_group_title = 'Date options'
+confopt = namedtuple('confopt', ['section', 'option', 'type', 'raw'],
+                     defaults=['str', False])
+conf_options = [
+    confopt(exec_group_title, 'pause_on_error', 'boolean'),
+    confopt(exec_group_title, 'mv_cmd'),
+    confopt(date_group_title, 'date_source'),
+    confopt(date_group_title, 'date_format', raw=True),
+    confopt(date_group_title, 'source_name_format', raw=True),
+]
+
+
+def read_config(conffile):
+    config = configparser.ConfigParser()
+    with open(Path(conffile).expanduser()) as conffile:
+        config.read_file(conffile)
+
+    result = dict()
+    for opt in conf_options:
+        if opt.type == 'boolean':
+            value = config.getboolean(opt.section, opt.option, fallback=None)
+        else:
+            value = config.get(opt.section, opt.option,
+                               raw=opt.raw, fallback=None)
+        if value is not None:
+            result[opt.option] = value
+    return result
+
+
+if __name__ == "__main__":
     default_dateformat_help = default_dateformat.replace('%', '%%')
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -217,16 +249,13 @@ if __name__ == "__main__":
     parser.add_argument("files", nargs="+", metavar="FILE", type=Path,
                         help="List of files to process")
 
-    exec_group = parser.add_argument_group("Program execution")
+    exec_group = parser.add_argument_group(exec_group_title)
     exec_group.add_argument("-s", "-n", "--simulate", "--dry-run",
                             dest="simulate", action="store_true",
                             default=False,
                             help="Simulate only (print what would be done, "
                             "don't do anything)")
     exec_group.add_argument("-p", "--pause-on-error", action="store_true",
-                            default=config.getboolean(exec_group.title,
-                                                      'pause_on_error',
-                                                      fallback=False),
                             help="Stop to wait for user input if an error "
                             "occurs.")
     mv_group = exec_group.add_mutually_exclusive_group()
@@ -237,27 +266,19 @@ if __name__ == "__main__":
                           dest="mv_cmd",
                           help="Specify a command to use for renaming")
 
-    date_group = parser.add_argument_group("Date options")
+    date_group = parser.add_argument_group(date_group_title)
     date_group.add_argument("-d", "--date-source", action="store",
-                            dest="date_source_str", metavar="src",
-                            default=config.get(date_group.title, 'date_source',
-                                               fallback='exif'),
+                            metavar="src",
                             help="Specify the date source(s) to try in order, "
                             "comma-separated (exif, file-name, file-created, "
                             "file-modified)")
     date_group.add_argument("-f", "--date-format", action="store",
                             metavar="fmt",
-                            default=config.get(date_group.title, 'date_format',
-                                               raw=True,
-                                               fallback=default_dateformat),
                             help="Specify a custom date format (default "
                             + default_dateformat_help + ", see man (3) "
                             "strftime for the format specification)")
     date_group.add_argument("--source-name-format", action="store",
                             metavar="fmt",
-                            default=config.get(date_group.title,
-                                               'source_name_format',
-                                               raw=True, fallback=None),
                             help="Specify a source file name format for "
                             "file-name source. See man (3) strftime for the "
                             "format specification.")
@@ -277,21 +298,25 @@ if __name__ == "__main__":
         pass
 
     args = parser.parse_args()
+    cmd_args = {k: v for k, v in vars(args).items() if v is not None}
+
+    try:
+        conf_args = read_config('~/.exif_rename.conf')
+    except FileNotFoundError:
+        # It's okay if there is no config file.
+        conf_args = {}
+
+    combined_args = ChainMap(cmd_args, conf_args, default_conf)
 
     try:
         # Do additional parsing
-        args.date_sources = parse_date_sources(args)
-        # Defaults don't work in a mutually exclusive group, so we
-        # have to apply config or defaults here.
-        if not args.mv_cmd:
-            args.mv_cmd = config.get(exec_group.title, 'mv_cmd', fallback=None)
-
+        combined_args['date_sources'] = parse_date_sources(combined_args)
     except CommandLineParseException as e:
         print(e, file=sys.stderr)
         sys.exit(1)
 
     try:
-        main(args)
+        main(combined_args)
     except KeyboardInterrupt:
         print()        # Be nice and finish the line with ^C ;)
         sys.exit(2)
