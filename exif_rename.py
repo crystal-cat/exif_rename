@@ -22,6 +22,7 @@ import datetime
 import logging
 import piexif
 import re
+import shlex
 import subprocess
 import struct
 import sys
@@ -120,7 +121,7 @@ class Renamer:
         self.simulate = args['simulate']
         self.simulated_filelist = set()
         if args['mv_cmd']:
-            self.mv_cmd = args['mv_cmd'].split()
+            self.mv_cmd = shlex.split(args['mv_cmd'])
         else:
             self.mv_cmd = None
 
