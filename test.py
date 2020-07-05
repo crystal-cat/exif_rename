@@ -78,6 +78,47 @@ class TimestampTest(unittest.TestCase):
                           self.args)
 
 
+class ConfigTest(unittest.TestCase):
+    def setUp(self):
+        self.args = args_mock(date_source='exif')
+
+    def test_date_sources(self):
+        self.assertEqual(exif_rename.parse_date_sources(self.args), ['exif'])
+
+    def test_date_sources_split(self):
+        self.args['date_source'] = 'exif,file-name'
+        self.assertEqual(exif_rename.parse_date_sources(self.args),
+                         ['exif', 'file-name'])
+
+    def test_date_sources_filename_no_format(self):
+        self.args['date_source'] = 'exif,file-name'
+        self.args['source_name_format'] = None
+        self.assertRaises(exif_rename.CommandLineParseException,
+                          exif_rename.parse_date_sources,
+                          self.args)
+
+    def test_date_sources_unknown(self):
+        self.args['date_source'] = 'meow'
+        self.assertRaises(exif_rename.CommandLineParseException,
+                          exif_rename.parse_date_sources,
+                          self.args)
+
+    def test_empty_config(self):
+        conf = exif_rename.read_config(datadir / 'config' / 'empty.conf')
+        self.assertEquals(conf, dict())
+
+    def test_full_config(self):
+        conf = exif_rename.read_config(datadir / 'config' / 'full.conf')
+        self.assertEquals(conf,
+                          {
+                              'pause_on_error': True,
+                              'mv_cmd': 'meow',
+                              'date_format': '%Y%m%d_%H%M%S',
+                              'date_source': 'exif,file-name',
+                              'source_name_format': '%Y%m%d_%H%M%S'
+                          })
+
+
 class MoveTest(unittest.TestCase):
     # The mapping contains expected (possible) file names for each
     # input file
@@ -122,7 +163,8 @@ class MoveTest(unittest.TestCase):
     def setUp(self):
         self.tempdir = TemporaryDirectory()
         for f in self.mapping:
-            shutil.copy2(f, self.tempdir.name)
+            if not f.is_dir():
+                shutil.copy2(f, self.tempdir.name)
         filelist = [x for x in Path(self.tempdir.name).iterdir()
                     if x.suffix == '.jpg']
         self.args = args_mock(files=filelist,
