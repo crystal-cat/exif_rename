@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 import exif_rename
 import hashlib
+import itertools
 import shutil
 import unittest
 from datetime import datetime
@@ -196,6 +197,26 @@ class MoveTest(unittest.TestCase):
         r = exif_rename.Renamer(self.args)
         r.run()
         self.check_move()
+
+    def test_renamer_simulate(self):
+        """Check if the simulated_filelist of a Renamer contains exactly the
+        expected items after a run()"""
+        self.args['simulate'] = True
+        r = exif_rename.Renamer(self.args)
+        r.run()
+        # To explain the magic below:
+        #
+        # 1. For the simulation result we only need the basenames,
+        # because the full names will vary with the temporary
+        # directory.
+        #
+        # 2. For the expected set we need to filter out files where
+        # the names do not change, because those don't show up in the
+        # simulation list.
+        self.assertEqual(
+            set(p.name for p in r.simulated_filelist),
+            set(itertools.chain(*(v for k, v in self.mapping.items()
+                                  if [k.name] != v))))
 
     def test_main(self):
         # Exact command line parameters!
