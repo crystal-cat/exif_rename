@@ -132,7 +132,7 @@ class Renamer:
     def __init__(self, args):
         self.args = args
         self.simulate = args['simulate']
-        self.simulated_filelist = []
+        self.simulated_filelist = set()
         if args['mv_cmd']:
             self.mv_cmd = args['mv_cmd'].split()
         else:
@@ -185,19 +185,19 @@ class Renamer:
         dir = src.parent
         index = 1
         candidate = dir.joinpath(f'{basename}{extension}')
-        while candidate.exists() \
-              or (self.simulate and candidate in self.simulated_filelist):
+        while (candidate.exists()
+               or (self.simulate and candidate in self.simulated_filelist)):
             candidate = dir.joinpath(f'{basename}-{index}{extension}')
             index += 1
 
         if self.simulate:
-            self.simulated_filelist.append(candidate)
+            self.simulated_filelist.add(candidate)
 
         return candidate
 
 
 def parse_date_sources(args):
-    accepted_sources = ('exif', 'file-name', 'file-created', 'file-modified')
+    accepted_sources = {'exif', 'file-name', 'file-created', 'file-modified'}
     sources = args['date_source'].split(',')
     for source in sources:
         if source not in accepted_sources:
