@@ -90,6 +90,16 @@ class TimestampTest(unittest.TestCase):
                 self.assertTrue(exif_rename.matches_timestamp(
                     f'{timestamp}-{i}{ext}', timestamp, ext))
 
+    def test_mismatch_names(self):
+        timestamp = '20191027_121401'
+        ext = '.jpg'
+        tests = ['20191027_121402.jpg', '20191027_121401-a.jpg',
+                 '20191027_121401--1.jpg']
+        for t in tests:
+            with self.subTest(name=t):
+                self.assertFalse(
+                    exif_rename.matches_timestamp(t, timestamp, ext))
+
 
 class ConfigTest(unittest.TestCase):
     def setUp(self):
