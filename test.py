@@ -199,6 +199,13 @@ class MoveTest(unittest.TestCase):
         r.run()
         self.check_move()
 
+    def test_renamer_skip_paths(self):
+        tempdir = Path(self.tempdir.name)
+        self.args['files'] += [tempdir, tempdir / 'does_not_exist.jpg']
+        r = exif_rename.Renamer(self.args)
+        r.run()
+        self.check_move()
+
     def test_renamer_simulate(self):
         """Check if the simulated_filelist of a Renamer contains exactly the
         expected items after a run()"""
