@@ -188,7 +188,7 @@ def parse_date_sources(args):
             raise CommandLineParseException('Unknown date source: ' + source)
         if source == 'file-name' and args['source_name_format'] is None:
             raise CommandLineParseException(
-                'You have to specify "--source-name-format to use the '
+                'You have to specify "--source-name-format" to use the '
                 '"file-name" source.')
 
     return sources
