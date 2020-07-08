@@ -193,9 +193,23 @@ class SimulatedRenamer(Renamer):
         return (path in self.files_added) or \
                (path not in self.files_removed and path.exists())
 
+    def add_file(self, path):
+        if path in self.files_removed:
+            # Add negates remove
+            self.files_removed.remove(path)
+        else:
+            self.files_added.add(path)
+
+    def remove_file(self, path):
+        if path in self.files_added:
+            # Remove negates add
+            self.files_added.remove(path)
+        else:
+            self.files_removed.add(path)
+
     def rename_file(self, src_file, dest_file):
-        self.files_removed.add(src_file)
-        self.files_added.add(dest_file)
+        self.add_file(dest_file)
+        self.remove_file(src_file)
 
 
 class FilesystemChangingRenamer(Renamer):
