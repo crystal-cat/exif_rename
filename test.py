@@ -279,6 +279,7 @@ class MoveTest(unittest.TestCase):
         self.args['simulate'] = True
         r = exif_rename.Renamer(self.args)
         r.run()
+
         # To explain the magic below:
         #
         # 1. For the simulation result we only need the basenames,
@@ -289,9 +290,16 @@ class MoveTest(unittest.TestCase):
         # the names do not change, because those don't show up in the
         # simulation list.
         self.assertEqual(
-            set(p.name for p in r.simulated_filelist),
+            set(p.name for p in r.files_added),
             set(itertools.chain(*(v for k, v in self.mapping.items()
                                   if [k.name] != v))))
+
+        # Also check that the source file names are in the internal
+        # list of removed files
+        self.assertEqual(
+            set(p.name for p in r.files_removed),
+            set(k.name for k, v in self.mapping.items()
+                                  if [k.name] != v))
 
     def test_main(self):
         # Exact command line parameters!

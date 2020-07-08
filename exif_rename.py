@@ -112,14 +112,22 @@ def get_timestamp(file, args):
 
 
 class Renamer:
-    """The main purpose of this class is to keep state while simulating
-    renaming. Additionally the constructor performs some parameter
-    restructuring.
+    """The main purpose of this class is to keep state while renaming
+    or simulating renaming. Additionally the constructor performs some
+    parameter restructuring.
     """
+    def __new__(cls, args):
+        if cls is Renamer:
+            if args['simulate']:
+                return SimulatedRenamer(args)
+            else:
+                return FilesystemChangingRenamer(args)
+
+        else:
+            return object.__new__(cls)
+
     def __init__(self, args):
         self.args = args
-        self.simulate = args['simulate']
-        self.simulated_filelist = set()
         if args['mv_cmd']:
             self.mv_cmd = shlex.split(args['mv_cmd'])
         else:
@@ -150,17 +158,12 @@ class Renamer:
                                                       ext)
                 logger.info('%s -(%s)-> %s', file, date_source, dest_file)
 
-                if self.simulate:
-                    if self.mv_cmd:
-                        logger.debug('%s "%s" "%s"',
-                                     self.mv_cmd, file, dest_file)
-                    else:
-                        logger.debug('%r.rename(\'%s\')', file, dest_file)
+                if self.mv_cmd:
+                    logger.debug('%s "%s" "%s"', self.mv_cmd, file, dest_file)
                 else:
-                    if self.mv_cmd:
-                        subprocess.run(self.mv_cmd + [file, dest_file])
-                    else:
-                        file.rename(dest_file)
+                    logger.debug('%r.rename(\'%s\')', file, dest_file)
+
+                self.rename_file(file, dest_file)
 
             except TimestampReadException as e:
                 logger.error('%s unmodified (no usable date source): %s',
@@ -170,15 +173,37 @@ class Renamer:
         dir = src.parent
         index = 1
         candidate = dir.joinpath(f'{basename}{extension}')
-        while (candidate.exists()
-               or (self.simulate and candidate in self.simulated_filelist)):
+        while (self.path_exists(candidate)):
             candidate = dir.joinpath(f'{basename}-{index}{extension}')
             index += 1
 
-        if self.simulate:
-            self.simulated_filelist.add(candidate)
-
         return candidate
+
+
+class SimulatedRenamer(Renamer):
+    def __init__(self, args):
+        super().__init__(args)
+        self.files_added = set()
+        self.files_removed = set()
+
+    def path_exists(self, path):
+        return (path in self.files_added) or \
+               (path not in self.files_removed and path.exists())
+
+    def rename_file(self, src_file, dest_file):
+        self.files_removed.add(src_file)
+        self.files_added.add(dest_file)
+
+
+class FilesystemChangingRenamer(Renamer):
+    def rename_file(self, src_file, dest_file):
+        if self.mv_cmd:
+            subprocess.run(self.mv_cmd + [src_file, dest_file])
+        else:
+            src_file.rename(dest_file)
+
+    def path_exists(self, path):
+        return path.exists()
 
 
 def parse_date_sources(args):
