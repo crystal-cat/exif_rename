@@ -301,6 +301,61 @@ class MoveTest(unittest.TestCase):
             set(k.name for k, v in self.mapping.items()
                                   if [k.name] != v))
 
+    def test_simulate_exchange_filenames(self):
+        self.args['simulate'] = True
+        r = exif_rename.Renamer(self.args)
+
+        # Check that the files that exist on disk
+        # also exist according to the renamer
+        for src_path, dest_names in self.mapping.items():
+            self.assertEqual(src_path.exists(), r.path_exists(src_path))
+            for dest_name in dest_names:
+                dest_path = datadir / dest_name
+                self.assertEqual(dest_path.exists(), r.path_exists(dest_path))
+
+        # We want to test exchanging file names a and b
+        # Step 1: rename: a -> temp
+        self.assertEqual(
+            r.find_unique_filename(datadir / 'sammy_awake.jpg',
+                                   'sammy', '.jpg'),
+            datadir / 'sammy.jpg')
+
+        r.rename_file(datadir / 'sammy_awake.jpg', datadir / 'sammy.jpg')
+        self.assertFalse(r.path_exists(datadir / 'sammy_awake.jpg'))
+        self.assertTrue(r.path_exists(datadir / 'sammy.jpg'))
+
+        # Check that nothing happened on the disk!
+        self.assertTrue((datadir / 'sammy_awake.jpg').exists())
+        self.assertFalse((datadir / 'sammy.jpg').exists())
+
+        # Step 2: rename: b -> a
+        self.assertEqual(
+            r.find_unique_filename(datadir / 'sammy_sleepy.jpg',
+                                   'sammy_awake', '.jpg'),
+            datadir / 'sammy_awake.jpg')
+
+        r.rename_file(datadir / 'sammy_sleepy.jpg', datadir / 'sammy_awake.jpg')
+        self.assertFalse(r.path_exists(datadir / 'sammy_sleepy.jpg'))
+        self.assertTrue(r.path_exists(datadir / 'sammy_awake.jpg'))
+        self.assertTrue(r.path_exists(datadir / 'sammy.jpg'))
+        self.assertEqual(
+            r.find_unique_filename(datadir / 'sammy.jpg',
+                                   'sammy_awake', '.jpg'),
+            datadir / 'sammy_awake-1.jpg')
+
+        # Step 1: rename: temp -> b
+        self.assertEqual(
+            r.find_unique_filename(datadir / 'sammy.jpg',
+                                   'sammy_sleepy', '.jpg'),
+            datadir / 'sammy_sleepy.jpg')
+
+        r.rename_file(datadir / 'sammy.jpg', datadir / 'sammy_sleepy.jpg')
+        self.assertFalse(r.path_exists(datadir / 'sammy.jpg'))
+        self.assertTrue(r.path_exists(datadir / 'sammy_awake.jpg'))
+        self.assertTrue(r.path_exists(datadir / 'sammy_sleepy.jpg'))
+
+
+
     def test_main(self):
         # Exact command line parameters!
         args = ['--date-source', 'exif,file-name',
