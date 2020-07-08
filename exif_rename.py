@@ -157,12 +157,6 @@ class Renamer:
                 dest_file = self.find_unique_filename(file, formatted_date,
                                                       ext)
                 logger.info('%s -(%s)-> %s', file, date_source, dest_file)
-
-                if self.mv_cmd:
-                    logger.debug('%s "%s" "%s"', self.mv_cmd, file, dest_file)
-                else:
-                    logger.debug('%r.rename(\'%s\')', file, dest_file)
-
                 self.rename_file(file, dest_file)
 
             except TimestampReadException as e:
@@ -197,9 +191,12 @@ class SimulatedRenamer(Renamer):
 
 class FilesystemChangingRenamer(Renamer):
     def rename_file(self, src_file, dest_file):
+        logger = logging.getLogger(__name__)
         if self.mv_cmd:
+            logger.debug('%s "%s" "%s"', self.mv_cmd, src_file, dest_file)
             subprocess.run(self.mv_cmd + [src_file, dest_file])
         else:
+            logger.debug('%r.rename(\'%s\')', src_file, dest_file)
             src_file.rename(dest_file)
 
     def path_exists(self, path):
