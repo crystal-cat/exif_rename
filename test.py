@@ -290,14 +290,14 @@ class MoveTest(unittest.TestCase):
         # the names do not change, because those don't show up in the
         # simulation list.
         self.assertEqual(
-            set(p.name for p in r.files_added),
+            set(p.name for p, c in r.files_added_counter.items() if c > 0),
             set(itertools.chain(*(v for k, v in self.mapping.items()
                                   if [k.name] != v))))
 
         # Also check that the source file names are in the internal
         # list of removed files
         self.assertEqual(
-            set(p.name for p in r.files_removed),
+            set(p.name for p, c in r.files_removed_counter.items() if c > 0),
             set(k.name for k, v in self.mapping.items()
                                   if [k.name] != v))
 
