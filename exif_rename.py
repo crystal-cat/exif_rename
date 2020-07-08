@@ -112,9 +112,14 @@ def get_timestamp(file, args):
 
 
 class Renamer:
-    """The main purpose of this class is to keep state while renaming
-    or simulating renaming. Additionally the constructor performs some
-    parameter restructuring.
+    """
+    The main purpose of this class is to keep state while renaming or
+    simulating renaming. Additionally the constructor performs some
+    parameter restructuring. The subclasses SimulatedRenamer and
+    FilesystemChangingRenamer contain some of the mutually exclusive
+    logic for dry and actual runs. This split exists to simplify and
+    generalize some of the functions and to split the responsibility
+    for better maintainability and testing.
     """
     def __new__(cls, args):
         if cls is Renamer:
@@ -175,6 +180,10 @@ class Renamer:
 
 
 class SimulatedRenamer(Renamer):
+    """
+    This class contains the logic for doing a dry run, or simulated
+    renaming. The actual files are not touched.
+    """
     def __init__(self, args):
         super().__init__(args)
         self.files_added = set()
@@ -190,6 +199,11 @@ class SimulatedRenamer(Renamer):
 
 
 class FilesystemChangingRenamer(Renamer):
+    """
+    This class contains the logic for the actual renaming of the files, as
+    opposed to simulated renaming.
+    """
+
     def rename_file(self, src_file, dest_file):
         logger = logging.getLogger(__name__)
         if self.mv_cmd:
