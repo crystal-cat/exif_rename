@@ -186,30 +186,26 @@ class SimulatedRenamer(Renamer):
     """
     def __init__(self, args):
         super().__init__(args)
-        self.files_added = set()
-        self.files_removed = set()
+        self.files_added_counter = dict()
+        self.files_removed_counter = dict()
+
+    def _introduce_file(self, path):
+        if path not in self.files_added_counter:
+            self.files_added_counter[path] = 0
+        if path not in self.files_removed_counter:
+            self.files_removed_counter[path] = 0
 
     def path_exists(self, path):
-        return (path in self.files_added) or \
-               (path not in self.files_removed and path.exists())
-
-    def add_file(self, path):
-        if path in self.files_removed:
-            # Add negates remove
-            self.files_removed.remove(path)
-        else:
-            self.files_added.add(path)
-
-    def remove_file(self, path):
-        if path in self.files_added:
-            # Remove negates add
-            self.files_added.remove(path)
-        else:
-            self.files_removed.add(path)
+        self._introduce_file(path)
+        return path.exists() \
+               + self.files_added_counter[path] \
+               - self.files_removed_counter[path] > 0
 
     def rename_file(self, src_file, dest_file):
-        self.add_file(dest_file)
-        self.remove_file(src_file)
+        self._introduce_file(src_file)
+        self._introduce_file(dest_file)
+        self.files_added_counter[dest_file] += 1
+        self.files_removed_counter[src_file] += 1
 
 
 class FilesystemChangingRenamer(Renamer):
