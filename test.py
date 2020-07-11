@@ -234,30 +234,6 @@ class MoveTest(unittest.TestCase):
             found += 1
         self.assertEqual(found, len(mapping))
 
-    def test_renamer_mv_cmd_simulate(self):
-        logger = logging.getLogger('exif_rename')
-        self.args['mv_cmd'] = 'git mv'
-        self.args['simulate'] = True
-
-        with tempfile.SpooledTemporaryFile(mode='w+') as log:
-            handler = logging.StreamHandler(stream=log)
-            logger.addHandler(handler)
-            try:
-                r = exif_rename.Renamer(self.args)
-                r.run()
-            finally:
-                logger.removeHandler(handler)
-            log.seek(0)
-            logdata = log.read()
-
-        dry_re = re.compile(r'^(\[.*\])\s"(.*)"\s".*"$')
-        for l in logdata.splitlines():
-            m = dry_re.fullmatch(l)
-            if m:
-                self.assertEqual(m.group(1),
-                                 str(shlex.split(self.args['mv_cmd'])))
-                self.assertIn(Path(m.group(2)), self.args['files'])
-
     def test_renamer_no_sources(self):
         # this way there will be no valid timestamp source for
         # 20191027_121401.jpg
