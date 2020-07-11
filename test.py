@@ -3,12 +3,15 @@ import exif_rename
 import hashlib
 import itertools
 import logging
+import logging.handlers
+import queue
 import re
 import shlex
 import shutil
 import sys
 import tempfile
 import unittest
+from collections import ChainMap
 from datetime import datetime
 from pathlib import Path
 
@@ -277,60 +280,38 @@ class MoveTest(unittest.TestCase):
             set(k.name for k, v in self.mapping.items()
                                   if [k.name] != v))
 
-    def test_simulate_exchange_filenames(self):
+    def test_simulate_reuse_filename(self):
+        tempdir = Path(self.tempdir.name)
+        sleepy = tempdir / 'sammy_sleepy.jpg'
+        # this creates a conflict with both (!) "awake" pictures
+        sleepy.rename(tempdir / '20190417_174537.jpg')
+        # since Python 3.7 dict preserves order
+        mapping = dict((tempdir / k, tempdir / v) for k, v in [
+            ('20190417_174537.jpg', '20190207_153710.jpg'),
+            ('sammy_awake.jpg', '20190417_174537.jpg'),
+            ('sammy_awake_commented.jpg', '20190417_174537-1.jpg'),
+        ])
+        self.args['files'] = mapping.keys()
         self.args['simulate'] = True
         r = exif_rename.Renamer(self.args)
 
-        # Check that the files that exist on disk
-        # also exist according to the renamer
-        for src_path, dest_names in self.mapping.items():
-            self.assertEqual(src_path.exists(), r.path_exists(src_path))
-            for dest_name in dest_names:
-                dest_path = datadir / dest_name
-                self.assertEqual(dest_path.exists(), r.path_exists(dest_path))
+        logger = logging.getLogger('exif_rename')
+        q = queue.SimpleQueue()
+        handler = logging.handlers.QueueHandler(q)
+        logger.addHandler(handler)
+        try:
+            r.run()
+        finally:
+            logger.removeHandler(handler)
 
-        # We want to test exchanging file names a and b
-        # Step 1: rename: a -> temp
-        self.assertEqual(
-            r.find_unique_filename(datadir / 'sammy_awake.jpg',
-                                   'sammy', '.jpg'),
-            datadir / 'sammy.jpg')
-
-        r.rename_file(datadir / 'sammy_awake.jpg', datadir / 'sammy.jpg')
-        self.assertFalse(r.path_exists(datadir / 'sammy_awake.jpg'))
-        self.assertTrue(r.path_exists(datadir / 'sammy.jpg'))
-
-        # Check that nothing happened on the disk!
-        self.assertTrue((datadir / 'sammy_awake.jpg').exists())
-        self.assertFalse((datadir / 'sammy.jpg').exists())
-
-        # Step 2: rename: b -> a
-        self.assertEqual(
-            r.find_unique_filename(datadir / 'sammy_sleepy.jpg',
-                                   'sammy_awake', '.jpg'),
-            datadir / 'sammy_awake.jpg')
-
-        r.rename_file(datadir / 'sammy_sleepy.jpg', datadir / 'sammy_awake.jpg')
-        self.assertFalse(r.path_exists(datadir / 'sammy_sleepy.jpg'))
-        self.assertTrue(r.path_exists(datadir / 'sammy_awake.jpg'))
-        self.assertTrue(r.path_exists(datadir / 'sammy.jpg'))
-        self.assertEqual(
-            r.find_unique_filename(datadir / 'sammy.jpg',
-                                   'sammy_awake', '.jpg'),
-            datadir / 'sammy_awake-1.jpg')
-
-        # Step 1: rename: temp -> b
-        self.assertEqual(
-            r.find_unique_filename(datadir / 'sammy.jpg',
-                                   'sammy_sleepy', '.jpg'),
-            datadir / 'sammy_sleepy.jpg')
-
-        r.rename_file(datadir / 'sammy.jpg', datadir / 'sammy_sleepy.jpg')
-        self.assertFalse(r.path_exists(datadir / 'sammy.jpg'))
-        self.assertTrue(r.path_exists(datadir / 'sammy_awake.jpg'))
-        self.assertTrue(r.path_exists(datadir / 'sammy_sleepy.jpg'))
-
-
+        for k, v in mapping.items():
+            self.assertEqual(q.get_nowait().getMessage(),
+                             f'{k!s} -(exif)-> {v!s}')
+        self.assertEqual(r.files_added_counter,
+                         dict((k, 1) for k in mapping.values()))
+        self.assertEqual(dict(r.files_removed_counter),
+                         ChainMap(dict((k, 1) for k in mapping.keys()),
+                                  dict((k, 0) for k in mapping.values())))
 
     def test_main(self):
         # Exact command line parameters!
