@@ -26,7 +26,7 @@ import shlex
 import subprocess
 import struct
 import sys
-from collections import ChainMap, namedtuple
+from collections import ChainMap, defaultdict, namedtuple
 from pathlib import Path
 
 
@@ -186,24 +186,15 @@ class SimulatedRenamer(Renamer):
     """
     def __init__(self, args):
         super().__init__(args)
-        self.files_added_counter = dict()
-        self.files_removed_counter = dict()
-
-    def _introduce_file(self, path):
-        if path not in self.files_added_counter:
-            self.files_added_counter[path] = 0
-        if path not in self.files_removed_counter:
-            self.files_removed_counter[path] = 0
+        self.files_added_counter = defaultdict(int)
+        self.files_removed_counter = defaultdict(int)
 
     def path_exists(self, path):
-        self._introduce_file(path)
-        return path.exists() \
-               + self.files_added_counter[path] \
-               - self.files_removed_counter[path] > 0
+        return (path.exists()
+                + self.files_added_counter[path]
+                - self.files_removed_counter[path] > 0)
 
     def rename_file(self, src_file, dest_file):
-        self._introduce_file(src_file)
-        self._introduce_file(dest_file)
         self.files_added_counter[dest_file] += 1
         self.files_removed_counter[src_file] += 1
 
