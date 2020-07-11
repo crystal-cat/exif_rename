@@ -5,7 +5,6 @@ import itertools
 import logging
 import logging.handlers
 import queue
-import re
 import shlex
 import shutil
 import sys
@@ -229,8 +228,8 @@ class MoveTest(unittest.TestCase):
         mapping = dict((k.name, v) for k, v in self.mapping.items()
                        if [k.name] != v)
         found = 0
-        for src, dst in ([Path(p) for p in l.split()]
-                         for l in logdata.splitlines()):
+        for src, dst in ([Path(p) for p in line.split()]
+                         for line in logdata.splitlines()):
             self.assertEqual(src.parent, tempdir)
             self.assertEqual(dst.parent, tempdir)
             self.assertTrue(dst.name in mapping[src.name])
@@ -277,8 +276,7 @@ class MoveTest(unittest.TestCase):
         # list of removed files
         self.assertEqual(
             set(p.name for p, c in r.files_removed_counter.items() if c > 0),
-            set(k.name for k, v in self.mapping.items()
-                                  if [k.name] != v))
+            set(k.name for k, v in self.mapping.items() if [k.name] != v))
 
     def test_simulate_reuse_filename(self):
         tempdir = Path(self.tempdir.name)
