@@ -30,6 +30,9 @@ from collections import ChainMap, defaultdict, namedtuple
 from pathlib import Path
 
 
+logger = logging.getLogger(__name__)
+
+
 class TimestampReadException(Exception):
     pass
 
@@ -153,8 +156,6 @@ class Renamer:
     def run(self):
         """Rename the files specified by args['files'].
         """
-        logger = logging.getLogger(__name__)
-
         for file in self.args['files']:
             if file.is_dir():
                 logger.info('Skipping %s (is a directory)', file)
@@ -257,7 +258,6 @@ class FilesystemChangingRenamer(Renamer):
         source file name is expected to exist and the destination file name
         is expected not to exist.
         """
-        logger = logging.getLogger(__name__)
         if self.mv_cmd:
             logger.debug('%s "%s" "%s"', self.mv_cmd, src_file, dest_file)
             subprocess.run(self.mv_cmd + [src_file, dest_file])
