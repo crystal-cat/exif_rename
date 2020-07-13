@@ -239,10 +239,10 @@ class SimulatedRenamer(Renamer):
                 + self.files_added_counter[path]
                 - self.files_removed_counter[path] > 0)
 
-    """Record a simulated rename.
-    The results of path_exists() function will reflect the rename.
-    """
     def rename_file(self, src_file, dest_file):
+        """Record a simulated rename.
+        The results of path_exists() function will reflect the rename.
+        """
         self.files_added_counter[dest_file] += 1
         self.files_removed_counter[src_file] += 1
 
@@ -252,12 +252,12 @@ class FilesystemChangingRenamer(Renamer):
     in the file system, as opposed to simulated renaming.
     """
 
-    """Rename a file.
-    Note that no checking of file names is made by this function, the
-    source file name is expected to exist and the destination file name
-    is expected not to exist.
-    """
     def rename_file(self, src_file, dest_file):
+        """Rename a file.
+        Note that no checking of file names is made by this function, the
+        source file name is expected to exist and the destination file name
+        is expected not to exist.
+        """
         logger = logging.getLogger(__name__)
         if self.mv_cmd:
             logger.debug('%s "%s" "%s"', self.mv_cmd, src_file, dest_file)
@@ -266,10 +266,10 @@ class FilesystemChangingRenamer(Renamer):
             logger.debug('%r.rename(\'%s\')', src_file, dest_file)
             src_file.rename(dest_file)
 
-    """Return whether the path given exists in the file system.
-    Called by the find_unique_filename() method in the base class.
-    """
     def path_exists(self, path):
+        """Return whether the path given exists in the file system.
+        Called by the find_unique_filename() method in the base class.
+        """
         return path.exists()
 
 
