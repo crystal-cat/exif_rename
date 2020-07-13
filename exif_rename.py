@@ -26,8 +26,11 @@ import shlex
 import subprocess
 import struct
 import sys
-from collections import ChainMap, namedtuple
+from collections import ChainMap, defaultdict, namedtuple
 from pathlib import Path
+
+
+logger = logging.getLogger(__name__)
 
 
 class TimestampReadException(Exception):
@@ -112,22 +115,47 @@ def get_timestamp(file, args):
 
 
 class Renamer:
-    """The main purpose of this class is to keep state while simulating
-    renaming. Additionally the constructor performs some parameter
-    restructuring.
+    """The base Renamer class.
+    The main purpose of this class is to keep state while renaming or
+    simulating renaming. Additionally the constructor performs some
+    parameter restructuring.
+
+    The subclasses SimulatedRenamer and FilesystemChangingRenamer contain
+    some of the mutually exclusive logic for dry and actual runs. This
+    split exists to simplify and generalize some of the functions and to
+    split the responsibility for better maintainability and testing.
     """
+    def __new__(cls, args):
+        """Return a new instance of Renamer when instantiated.
+        This function decides which subclass to instantiate depending on
+        the arguments (the "args" parameter) given.
+
+        If we're simulating (args['simulate'] is True) the object returned
+        will be of type SimulatedRenamer. Otherwise, it will be of type
+        FilesystemChangingRenamer.
+        """
+        if cls is Renamer:
+            if args['simulate']:
+                return SimulatedRenamer(args)
+            else:
+                return FilesystemChangingRenamer(args)
+
+        else:
+            return object.__new__(cls)
+
     def __init__(self, args):
+        """Initialize a new Renamer object.
+        Initialization logic common to all subclasses happens here.
+        """
         self.args = args
-        self.simulate = args['simulate']
-        self.simulated_filelist = set()
         if args['mv_cmd']:
             self.mv_cmd = shlex.split(args['mv_cmd'])
         else:
             self.mv_cmd = None
 
     def run(self):
-        logger = logging.getLogger(__name__)
-
+        """Rename the files specified by args['files'].
+        """
         for file in self.args['files']:
             if file.is_dir():
                 logger.info('Skipping %s (is a directory)', file)
@@ -146,39 +174,102 @@ class Renamer:
                                  file)
                     continue
 
-                dest_file = self.find_unique_filename(file, formatted_date,
-                                                      ext)
+                dest_file = self.find_unique_filename(file.parent,
+                                                      formatted_date, ext)
                 logger.info('%s -(%s)-> %s', file, date_source, dest_file)
-
-                if self.simulate:
-                    if self.mv_cmd:
-                        logger.debug('%s "%s" "%s"',
-                                     self.mv_cmd, file, dest_file)
-                    else:
-                        logger.debug('%r.rename(\'%s\')', file, dest_file)
-                else:
-                    if self.mv_cmd:
-                        subprocess.run(self.mv_cmd + [file, dest_file])
-                    else:
-                        file.rename(dest_file)
+                self.rename_file(file, dest_file)
 
             except TimestampReadException as e:
                 logger.error('%s unmodified (no usable date source): %s',
                              file, e)
 
-    def find_unique_filename(self, src, basename, extension):
-        dir = src.parent
+    def find_unique_filename(self, directory, basename, extension):
+        """Find a suitable file name that doesn't already exist.
+
+        Positional arguments:
+        directory -- The directory for the new file.
+        basename -- "file" in "file.jpg"
+        extension -- ".jpg" in "file.jpg"
+
+        Returns:
+        "file.jpg" or "file-1.jpg" or "file-2.jpg" etc. that's guaranteed
+        not to exist in the filesystem
+        """
         index = 1
-        candidate = dir.joinpath(f'{basename}{extension}')
-        while (candidate.exists()
-               or (self.simulate and candidate in self.simulated_filelist)):
-            candidate = dir.joinpath(f'{basename}-{index}{extension}')
+        candidate = directory.joinpath(f'{basename}{extension}')
+        while (self.path_exists(candidate)):
+            candidate = directory.joinpath(f'{basename}-{index}{extension}')
             index += 1
 
-        if self.simulate:
-            self.simulated_filelist.add(candidate)
-
         return candidate
+
+
+class SimulatedRenamer(Renamer):
+    """This class contains the logic for doing a dry run, or simulated
+    renaming. The actual files are not touched.
+    """
+    def __init__(self, args):
+        """Initialize a new SimulatedRenamer object.
+        This constructor extends the functionality of the constructor
+        from the base class.
+        """
+        super().__init__(args)
+
+        self.files_added_counter = defaultdict(int)
+        """Paths that are marked to exist within the simulation.
+        The value for each key marks how many times the path has been
+        marked to exist (as in, being the target path for renaming)
+        """
+
+        self.files_removed_counter = defaultdict(int)
+        """Paths that are marked to not exist within the simulation.
+        The value for each key marks how many times the path has been
+        marked to not exist (as in, being the source path for renaming)
+        """
+
+    def path_exists(self, path):
+        """Return whether the path given exists.
+        Called by the find_unique_filename() method in the base class.
+
+        In the context of this class a path exists either if it exists in
+        the file system and hasn't been marked removed, or if there's a
+        new path that's been marked as added.
+        """
+        return (path.exists()
+                + self.files_added_counter[path]
+                - self.files_removed_counter[path] > 0)
+
+    def rename_file(self, src_file, dest_file):
+        """Record a simulated rename.
+        The results of path_exists() function will reflect the rename.
+        """
+        self.files_added_counter[dest_file] += 1
+        self.files_removed_counter[src_file] += 1
+
+
+class FilesystemChangingRenamer(Renamer):
+    """This class contains the logic for the actual renaming of the files
+    in the file system, as opposed to simulated renaming.
+    """
+
+    def rename_file(self, src_file, dest_file):
+        """Rename a file.
+        Note that no checking of file names is made by this function, the
+        source file name is expected to exist and the destination file name
+        is expected not to exist.
+        """
+        if self.mv_cmd:
+            logger.debug('%s "%s" "%s"', self.mv_cmd, src_file, dest_file)
+            subprocess.run(self.mv_cmd + [src_file, dest_file])
+        else:
+            logger.debug('%r.rename(\'%s\')', src_file, dest_file)
+            src_file.rename(dest_file)
+
+    def path_exists(self, path):
+        """Return whether the path given exists in the file system.
+        Called by the find_unique_filename() method in the base class.
+        """
+        return path.exists()
 
 
 def parse_date_sources(args):

@@ -3,12 +3,14 @@ import exif_rename
 import hashlib
 import itertools
 import logging
-import re
+import logging.handlers
+import queue
 import shlex
 import shutil
 import sys
 import tempfile
 import unittest
+from collections import ChainMap
 from datetime import datetime
 from pathlib import Path
 
@@ -226,37 +228,13 @@ class MoveTest(unittest.TestCase):
         mapping = dict((k.name, v) for k, v in self.mapping.items()
                        if [k.name] != v)
         found = 0
-        for src, dst in ([Path(p) for p in l.split()]
-                         for l in logdata.splitlines()):
+        for src, dst in ([Path(p) for p in line.split()]
+                         for line in logdata.splitlines()):
             self.assertEqual(src.parent, tempdir)
             self.assertEqual(dst.parent, tempdir)
             self.assertTrue(dst.name in mapping[src.name])
             found += 1
         self.assertEqual(found, len(mapping))
-
-    def test_renamer_mv_cmd_simulate(self):
-        logger = logging.getLogger('exif_rename')
-        self.args['mv_cmd'] = 'git mv'
-        self.args['simulate'] = True
-
-        with tempfile.SpooledTemporaryFile(mode='w+') as log:
-            handler = logging.StreamHandler(stream=log)
-            logger.addHandler(handler)
-            try:
-                r = exif_rename.Renamer(self.args)
-                r.run()
-            finally:
-                logger.removeHandler(handler)
-            log.seek(0)
-            logdata = log.read()
-
-        dry_re = re.compile(r'^(\[.*\])\s"(.*)"\s".*"$')
-        for l in logdata.splitlines():
-            m = dry_re.fullmatch(l)
-            if m:
-                self.assertEqual(m.group(1),
-                                 str(shlex.split(self.args['mv_cmd'])))
-                self.assertIn(Path(m.group(2)), self.args['files'])
 
     def test_renamer_no_sources(self):
         # this way there will be no valid timestamp source for
@@ -279,6 +257,7 @@ class MoveTest(unittest.TestCase):
         self.args['simulate'] = True
         r = exif_rename.Renamer(self.args)
         r.run()
+
         # To explain the magic below:
         #
         # 1. For the simulation result we only need the basenames,
@@ -289,9 +268,48 @@ class MoveTest(unittest.TestCase):
         # the names do not change, because those don't show up in the
         # simulation list.
         self.assertEqual(
-            set(p.name for p in r.simulated_filelist),
+            set(p.name for p, c in r.files_added_counter.items() if c > 0),
             set(itertools.chain(*(v for k, v in self.mapping.items()
                                   if [k.name] != v))))
+
+        # Also check that the source file names are in the internal
+        # list of removed files
+        self.assertEqual(
+            set(p.name for p, c in r.files_removed_counter.items() if c > 0),
+            set(k.name for k, v in self.mapping.items() if [k.name] != v))
+
+    def test_simulate_reuse_filename(self):
+        tempdir = Path(self.tempdir.name)
+        sleepy = tempdir / 'sammy_sleepy.jpg'
+        # this creates a conflict with both (!) "awake" pictures
+        sleepy.rename(tempdir / '20190417_174537.jpg')
+        # since Python 3.7 dict preserves order
+        mapping = dict((tempdir / k, tempdir / v) for k, v in [
+            ('20190417_174537.jpg', '20190207_153710.jpg'),
+            ('sammy_awake.jpg', '20190417_174537.jpg'),
+            ('sammy_awake_commented.jpg', '20190417_174537-1.jpg'),
+        ])
+        self.args['files'] = mapping.keys()
+        self.args['simulate'] = True
+        r = exif_rename.Renamer(self.args)
+
+        logger = logging.getLogger('exif_rename')
+        q = queue.SimpleQueue()
+        handler = logging.handlers.QueueHandler(q)
+        logger.addHandler(handler)
+        try:
+            r.run()
+        finally:
+            logger.removeHandler(handler)
+
+        for k, v in mapping.items():
+            self.assertEqual(q.get_nowait().getMessage(),
+                             f'{k!s} -(exif)-> {v!s}')
+        self.assertEqual(r.files_added_counter,
+                         dict((k, 1) for k in mapping.values()))
+        self.assertEqual(dict(r.files_removed_counter),
+                         ChainMap(dict((k, 1) for k in mapping.keys()),
+                                  dict((k, 0) for k in mapping.values())))
 
     def test_main(self):
         # Exact command line parameters!
