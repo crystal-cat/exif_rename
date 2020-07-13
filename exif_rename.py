@@ -173,8 +173,8 @@ class Renamer:
                                  file)
                     continue
 
-                dest_file = self.find_unique_filename(file, formatted_date,
-                                                      ext)
+                dest_file = self.find_unique_filename(file.parent,
+                                                      formatted_date, ext)
                 logger.info('%s -(%s)-> %s', file, date_source, dest_file)
                 self.rename_file(file, dest_file)
 
@@ -182,11 +182,11 @@ class Renamer:
                 logger.error('%s unmodified (no usable date source): %s',
                              file, e)
 
-    def find_unique_filename(self, src, basename, extension):
+    def find_unique_filename(self, directory, basename, extension):
         """Find a suitable file name that doesn't already exist.
 
         Positional arguments:
-        src -- Source filename including a path
+        directory -- The directory for the new file.
         basename -- "file" in "file.jpg"
         extension -- ".jpg" in "file.jpg"
 
@@ -194,11 +194,10 @@ class Renamer:
         "file.jpg" or "file-1.jpg" or "file-2.jpg" etc. that's guaranteed
         not to exist in the filesystem
         """
-        dir = src.parent
         index = 1
-        candidate = dir.joinpath(f'{basename}{extension}')
+        candidate = directory.joinpath(f'{basename}{extension}')
         while (self.path_exists(candidate)):
-            candidate = dir.joinpath(f'{basename}-{index}{extension}')
+            candidate = directory.joinpath(f'{basename}-{index}{extension}')
             index += 1
 
         return candidate
