@@ -68,7 +68,7 @@ def get_exif_timestamp(filename):
 
     if piexif.ExifIFD.DateTimeDigitized not in exif_dict["Exif"]:
         raise TimestampReadException(
-            "File {filename} does not contain an EXIF timestamp.")
+            f"File {filename} does not contain an EXIF timestamp.")
 
     datetime_str = exif_dict["Exif"][piexif.ExifIFD.DateTimeDigitized].decode()
     datetime_match = exif_date_pattern.match(datetime_str).groups()
