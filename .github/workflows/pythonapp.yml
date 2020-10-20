@@ -35,7 +35,7 @@ jobs:
     - name: store coverage report
       uses: actions/upload-artifact@v2
       with:
-        name: coverage-report
+        name: coverage-report-${{ matrix.python-version }}
         path: htmlcov/
     - name: Check for syntax errors and undefined names
       run: |
