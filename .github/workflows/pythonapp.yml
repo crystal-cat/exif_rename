@@ -43,3 +43,22 @@ jobs:
     - name: Check style consistency
       run: |
         flake8 . --count --exit-zero --max-complexity=10 --statistics
+
+  exifread:
+    runs-on: ubuntu-latest
+    container: debian:bullseye
+    steps:
+      - name: Install dependencies
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get -y install git python3 python3-coverage python3-exifread
+      - uses: actions/checkout@v2
+      - name: Run tests and report coverage
+        run: |
+          bash coverage.bash
+      - name: Store coverage report
+        uses: actions/upload-artifact@v2
+        with:
+          name: coverage-report-exifread
+          path: htmlcov/
