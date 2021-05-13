@@ -20,7 +20,6 @@ import argparse
 import configparser
 import datetime
 import logging
-import piexif
 import re
 import shlex
 import subprocess
@@ -54,7 +53,7 @@ exif_date_pattern = \
     re.compile(r'^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})$')
 
 
-def get_exif_timestamp(filename):
+def _get_exif_timestamp_piexif(filename):
     try:
         exif_dict = piexif.load(filename)
     except piexif.InvalidImageDataError as e:
@@ -76,6 +75,32 @@ def get_exif_timestamp(filename):
     return datetime.datetime(
             datetime_tuple[0], datetime_tuple[1], datetime_tuple[2],
             datetime_tuple[3], datetime_tuple[4], datetime_tuple[5])
+
+
+def _get_exif_timestamp_exifread(filename):
+    with open(filename, 'rb') as fh:
+        exif_dict = exifread.process_file(fh)
+
+    if 'EXIF DateTimeDigitized' not in exif_dict:
+        raise TimestampReadException(
+            f"File {filename} does not contain an EXIF timestamp.")
+
+    datetime_str = str(exif_dict['EXIF DateTimeDigitized'])
+    datetime_match = exif_date_pattern.match(datetime_str).groups()
+    datetime_tuple = list(map(int, datetime_match))
+    return datetime.datetime(
+            datetime_tuple[0], datetime_tuple[1], datetime_tuple[2],
+            datetime_tuple[3], datetime_tuple[4], datetime_tuple[5])
+
+
+# Decide which function to use as "get_exif_timestamp" depending on
+# which EXIF library is available.
+try:
+    import piexif
+    get_exif_timestamp = _get_exif_timestamp_piexif
+except ImportError:
+    import exifread
+    get_exif_timestamp = _get_exif_timestamp_exifread
 
 
 def get_filename_timestamp(filename, filename_format):
