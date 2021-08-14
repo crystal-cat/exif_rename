@@ -26,6 +26,7 @@ import subprocess
 import struct
 import sys
 from collections import ChainMap, defaultdict, namedtuple
+from enum import Enum
 from pathlib import Path
 
 
@@ -38,6 +39,13 @@ class TimestampReadException(Exception):
 
 class CommandLineParseException(Exception):
     pass
+
+
+class DateSource(Enum):
+    EXIF = 'exif'
+    FILE_NAME = 'file-name'
+    FILE_CREATED = 'file-created'
+    FILE_MODIFIED = 'file-modified'
 
 
 def matches_timestamp(filename, timestamp, extension):
@@ -121,15 +129,15 @@ def get_timestamp(file, args):
 
     for date_source in args['date_sources']:
         try:
-            if date_source == 'exif':
+            if date_source == DateSource.EXIF:
                 return (date_source, get_exif_timestamp(str(file)))
-            elif date_source == 'file-name':
+            elif date_source == DateSource.FILE_NAME:
                 return (date_source,
                         get_filename_timestamp(file.name,
                                                args['source_name_format']))
-            elif date_source == 'file-created':
+            elif date_source == DateSource.FILE_CREATED:
                 return (date_source, get_stat_timestamp(file, 'st_ctime'))
-            elif date_source == 'file-modified':
+            elif date_source == DateSource.FILE_MODIFIED:
                 return (date_source, get_stat_timestamp(file, 'st_mtime'))
             else:
                 raise ValueError('Unknown date source: ' + date_source)
@@ -201,7 +209,8 @@ class Renamer:
 
                 dest_file = self.find_unique_filename(file.parent,
                                                       formatted_date, ext)
-                logger.info('%s -(%s)-> %s', file, date_source, dest_file)
+                logger.info('%s -(%s)-> %s',
+                            file, date_source.value, dest_file)
                 self.rename_file(file, dest_file)
 
             except TimestampReadException as e:
@@ -298,16 +307,18 @@ class FilesystemChangingRenamer(Renamer):
 
 
 def parse_date_sources(args):
-    accepted_sources = {'exif', 'file-name', 'file-created', 'file-modified'}
-    sources = args['date_source'].split(',')
-    for source in sources:
-        if source not in accepted_sources:
-            raise CommandLineParseException('Unknown date source: ' + source)
-        if source == 'file-name' and args['source_name_format'] is None:
+    sources = list()
+    for s in args['date_source'].split(','):
+        try:
+            source = DateSource(s)
+            sources.append(source)
+        except ValueError:
+            raise CommandLineParseException(f'Unknown date source: {s}')
+        if source == DateSource.FILE_NAME \
+           and args['source_name_format'] is None:
             raise CommandLineParseException(
                 'You have to specify "--source-name-format" to use the '
                 '"file-name" source.')
-
     return sources
 
 

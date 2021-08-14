@@ -12,6 +12,7 @@ import tempfile
 import unittest
 from collections import ChainMap
 from datetime import datetime
+from exif_rename import DateSource
 from pathlib import Path
 
 datadir = Path(__file__).parent / 'test_data'
@@ -28,6 +29,8 @@ def args_mock(**kwargs):
         'simulate': False
     })
     args.update(kwargs)
+    args['date_sources'] = \
+        [DateSource(s) for s in args['date_sources']]
     return args
 
 
@@ -37,40 +40,44 @@ class TimestampTest(unittest.TestCase):
 
     def test_sammy_awake(self):
         self.assertEqual(
-            ('exif', datetime(2019, 4, 17, 17, 45, 37)),
+            (DateSource.EXIF, datetime(2019, 4, 17, 17, 45, 37)),
             exif_rename.get_timestamp(datadir / 'sammy_awake.jpg', self.args))
 
     def test_sammy_sleepy(self):
         self.assertEqual(
-            ('exif', datetime(2019, 2, 7, 15, 37, 10)),
+            (DateSource.EXIF, datetime(2019, 2, 7, 15, 37, 10)),
             exif_rename.get_timestamp(datadir / 'sammy_sleepy.jpg', self.args))
 
     def test_no_exif(self):
-        self.args['date_sources'] = ['exif', 'file-name']
+        self.args['date_sources'] = [DateSource.EXIF, DateSource.FILE_NAME]
         self.assertEqual(
-            ('file-name', datetime(2019, 10, 27, 12, 14, 1)),
+            (DateSource.FILE_NAME, datetime(2019, 10, 27, 12, 14, 1)),
             exif_rename.get_timestamp(datadir / '20191027_121401.jpg',
                                       self.args))
 
     def test_unparsable_filename(self):
-        self.args['date_sources'] = ['file-name']
+        self.args['date_sources'] = [DateSource.FILE_NAME]
         self.assertRaises(exif_rename.TimestampReadException,
                           exif_rename.get_timestamp,
                           datadir / 'sammy_sleepy.jpg',
                           self.args)
 
     def test_fallthrough_ctime(self):
-        self.args['date_sources'] = ['file-name', 'file-created']
+        self.args['date_sources'] = [DateSource.FILE_NAME,
+                                     DateSource.FILE_CREATED]
         sleepy = datadir / 'sammy_sleepy.jpg'
         self.assertEqual(
-            ('file-created', datetime.fromtimestamp(sleepy.stat().st_ctime)),
+            (DateSource.FILE_CREATED,
+             datetime.fromtimestamp(sleepy.stat().st_ctime)),
             exif_rename.get_timestamp(sleepy, self.args))
 
     def test_fallthrough_mtime(self):
-        self.args['date_sources'] = ['file-name', 'file-modified']
+        self.args['date_sources'] = [DateSource.FILE_NAME,
+                                     DateSource.FILE_MODIFIED]
         sleepy = datadir / 'sammy_sleepy.jpg'
         self.assertEqual(
-            ('file-modified', datetime.fromtimestamp(sleepy.stat().st_mtime)),
+            (DateSource.FILE_MODIFIED,
+             datetime.fromtimestamp(sleepy.stat().st_mtime)),
             exif_rename.get_timestamp(sleepy, self.args))
 
     def test_no_image(self):
@@ -111,12 +118,13 @@ class ConfigTest(unittest.TestCase):
         self.args = args_mock(date_source='exif')
 
     def test_date_sources(self):
-        self.assertEqual(exif_rename.parse_date_sources(self.args), ['exif'])
+        self.assertEqual(exif_rename.parse_date_sources(self.args),
+                         [DateSource.EXIF])
 
     def test_date_sources_split(self):
         self.args['date_source'] = 'exif,file-name'
         self.assertEqual(exif_rename.parse_date_sources(self.args),
-                         ['exif', 'file-name'])
+                         [DateSource.EXIF, DateSource.FILE_NAME])
 
     def test_date_sources_filename_no_format(self):
         self.args['date_source'] = 'exif,file-name'
@@ -239,7 +247,7 @@ class MoveTest(unittest.TestCase):
     def test_renamer_no_sources(self):
         # this way there will be no valid timestamp source for
         # 20191027_121401.jpg
-        self.args['date_sources'] = ['exif']
+        self.args['date_sources'] = [DateSource.EXIF]
         r = exif_rename.Renamer(self.args)
         r.run()
         self.check_move()
