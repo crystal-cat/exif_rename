@@ -16,6 +16,7 @@ There is NO WARRANTY, to the extent permitted by law.
 """
 import exif_rename
 import sys
+from contextlib import ExitStack
 from pathlib import Path
 from PIL import Image
 
@@ -29,15 +30,24 @@ def scale_file(infile, size=(1280, 1280), date_format='%Y%m%d_%H%M%S'):
         ])[1]
 
     formatted_date = timestamp.strftime(date_format)
-    # TODO: detect/avoid collisions
-    outfile = formatted_date + infile.suffix
+    with ExitStack() as stack:
+        # find an available filename based on the timestamp
+        out = None
+        index = 0
+        while out is None:
+            outfile = formatted_date + (f'-{index}' if index else '') \
+                + infile.suffix
+            try:
+                out = stack.enter_context(open(outfile, 'xb'))
+            except FileExistsError:
+                index += 1
+        print(f'{infile} -> {outfile}')
 
-    print(f'{infile} -> {outfile}')
-    with Image.open(infile) as img:
+        img = stack.enter_context(Image.open(infile))
         img.thumbnail(size)
         # img.save() accepts a file handle, so we can use exclusive
         # open for collision detection
-        img.save(outfile)
+        img.save(out)
 
 
 # TODO: configurable size (command line)
