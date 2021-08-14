@@ -124,17 +124,17 @@ def get_stat_timestamp(file, timestamp_type):
     return datetime.datetime.fromtimestamp(getattr(statinfo, timestamp_type))
 
 
-def get_timestamp(file, args):
+def get_timestamp(file, date_sources, source_name_format=None):
     exceptions = []
 
-    for date_source in args['date_sources']:
+    for date_source in date_sources:
         try:
             if date_source == DateSource.EXIF:
                 return (date_source, get_exif_timestamp(str(file)))
             elif date_source == DateSource.FILE_NAME:
                 return (date_source,
                         get_filename_timestamp(file.name,
-                                               args['source_name_format']))
+                                               source_name_format))
             elif date_source == DateSource.FILE_CREATED:
                 return (date_source, get_stat_timestamp(file, 'st_ctime'))
             elif date_source == DateSource.FILE_MODIFIED:
@@ -199,7 +199,10 @@ class Renamer:
                 continue
 
             try:
-                (date_source, dt) = get_timestamp(file, self.args)
+                (date_source, dt) = get_timestamp(
+                    file,
+                    self.args['date_sources'],
+                    self.args['source_name_format'])
                 formatted_date = dt.strftime(self.args['date_format'])
                 ext = file.suffix.lower()
                 if matches_timestamp(file.name, formatted_date, ext):

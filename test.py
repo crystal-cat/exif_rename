@@ -41,26 +41,32 @@ class TimestampTest(unittest.TestCase):
     def test_sammy_awake(self):
         self.assertEqual(
             (DateSource.EXIF, datetime(2019, 4, 17, 17, 45, 37)),
-            exif_rename.get_timestamp(datadir / 'sammy_awake.jpg', self.args))
+            exif_rename.get_timestamp(datadir / 'sammy_awake.jpg',
+                                      self.args['date_sources'],
+                                      self.args['source_name_format']))
 
     def test_sammy_sleepy(self):
         self.assertEqual(
             (DateSource.EXIF, datetime(2019, 2, 7, 15, 37, 10)),
-            exif_rename.get_timestamp(datadir / 'sammy_sleepy.jpg', self.args))
+            exif_rename.get_timestamp(datadir / 'sammy_sleepy.jpg',
+                                      self.args['date_sources'],
+                                      self.args['source_name_format']))
 
     def test_no_exif(self):
         self.args['date_sources'] = [DateSource.EXIF, DateSource.FILE_NAME]
         self.assertEqual(
             (DateSource.FILE_NAME, datetime(2019, 10, 27, 12, 14, 1)),
             exif_rename.get_timestamp(datadir / '20191027_121401.jpg',
-                                      self.args))
+                                      self.args['date_sources'],
+                                      self.args['source_name_format']))
 
     def test_unparsable_filename(self):
         self.args['date_sources'] = [DateSource.FILE_NAME]
         self.assertRaises(exif_rename.TimestampReadException,
                           exif_rename.get_timestamp,
                           datadir / 'sammy_sleepy.jpg',
-                          self.args)
+                          self.args['date_sources'],
+                          self.args['source_name_format'])
 
     def test_fallthrough_ctime(self):
         self.args['date_sources'] = [DateSource.FILE_NAME,
@@ -69,7 +75,8 @@ class TimestampTest(unittest.TestCase):
         self.assertEqual(
             (DateSource.FILE_CREATED,
              datetime.fromtimestamp(sleepy.stat().st_ctime)),
-            exif_rename.get_timestamp(sleepy, self.args))
+            exif_rename.get_timestamp(sleepy, self.args['date_sources'],
+                                      self.args['source_name_format']))
 
     def test_fallthrough_mtime(self):
         self.args['date_sources'] = [DateSource.FILE_NAME,
@@ -78,7 +85,8 @@ class TimestampTest(unittest.TestCase):
         self.assertEqual(
             (DateSource.FILE_MODIFIED,
              datetime.fromtimestamp(sleepy.stat().st_mtime)),
-            exif_rename.get_timestamp(sleepy, self.args))
+            exif_rename.get_timestamp(sleepy, self.args['date_sources'],
+                                      self.args['source_name_format']))
 
     def test_no_image(self):
         self.assertRaises(exif_rename.TimestampReadException,
