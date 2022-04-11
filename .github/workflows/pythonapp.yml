@@ -32,7 +32,7 @@ jobs:
       run: |
         bash coverage.bash
     - name: store coverage report
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: coverage-report-${{ matrix.python-version }}
         path: htmlcov/
@@ -57,7 +57,7 @@ jobs:
         run: |
           bash coverage.bash
       - name: Store coverage report
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: coverage-report-exifread
           path: htmlcov/
