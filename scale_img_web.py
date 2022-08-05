@@ -2,7 +2,7 @@
 """scale_img_web
 
 A tool for scaling images to certain maximum dimensions, naming the
-output file after date information for the original.
+output file after date information from the original.
 
 """
 
@@ -14,8 +14,9 @@ License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.
 This is free software: you are free to change and redistribute it.
 There is NO WARRANTY, to the extent permitted by law.
 """
+import argparse
 import exif_rename
-import sys
+from collections import ChainMap
 from contextlib import ExitStack
 from pathlib import Path
 from PIL import Image
@@ -49,7 +50,38 @@ def scale_file(infile, size=(1280, 1280), date_format='%Y%m%d_%H%M%S'):
         img.save(out)
 
 
-# TODO: configurable size (command line)
-# TODO: configurable date format (command line, exif_rename config)
-for f in sys.argv[1:]:
-    scale_file(Path(f))
+if __name__ == '__main__':
+    # TODO: configurable size (command line)
+    default_dateformat_help = exif_rename.default_dateformat.replace('%', '%%')
+    parser = argparse.ArgumentParser()
+
+    # Files to process
+    parser.add_argument('files', nargs='+', metavar='FILE', type=Path,
+                        help='List of files to process')
+
+    parser.add_argument('-f', '--date-format', action='store',
+                        metavar='fmt',
+                        help='Specify a custom date format (default '
+                        f'{default_dateformat_help}, see man (3) '
+                        'strftime for the format specification)')
+
+    # enable bash completion if argcomplete is available
+    try:
+        import argcomplete
+        argcomplete.autocomplete(parser)
+    except ImportError:
+        pass
+
+    args = parser.parse_args()
+    cmd_args = {k: v for k, v in vars(args).items() if v is not None}
+
+    try:
+        conf_args = exif_rename.read_config('~/.exif_rename.conf')
+    except FileNotFoundError:
+        # It's okay if there is no config file.
+        conf_args = {}
+
+    combined_args = ChainMap(cmd_args, conf_args, exif_rename.default_conf)
+
+    for f in combined_args['files']:
+        scale_file(f, date_format=combined_args['date_format'])
