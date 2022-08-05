@@ -52,7 +52,10 @@ def scale_file(infile, size=(1280, 1280), date_format='%Y%m%d_%H%M%S'):
 
 if __name__ == '__main__':
     default_dateformat_help = exif_rename.default_dateformat.replace('%', '%%')
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description='Scale images to certain maximum size (larger of width '
+        'or height), naming the output file after date and time information '
+        'from the original.')
 
     # Files to process
     parser.add_argument(
@@ -60,7 +63,7 @@ if __name__ == '__main__':
         help='List of files to process')
 
     parser.add_argument(
-        '-f', '--date-format', action='store', metavar='fmt',
+        '-f', '--date-format', action='store', metavar='FMT',
         help='Specify a custom date format (default '
         f'{default_dateformat_help}, see man (3) strftime for '
         'the format specification)')
