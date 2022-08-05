@@ -38,6 +38,7 @@ def scale_file(infile, size=(1280, 1280), date_format='%Y%m%d_%H%M%S'):
             outfile = formatted_date + (f'-{index}' if index else '') \
                 + infile.suffix
             try:
+                # use open with exclusive creation for collision detection
                 out = stack.enter_context(open(outfile, 'xb'))
             except FileExistsError:
                 index += 1
@@ -45,8 +46,6 @@ def scale_file(infile, size=(1280, 1280), date_format='%Y%m%d_%H%M%S'):
 
         img = stack.enter_context(Image.open(infile))
         img.thumbnail(size)
-        # img.save() accepts a file handle, so we can use exclusive
-        # open for collision detection
         img.save(out)
 
 
