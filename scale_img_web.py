@@ -51,19 +51,23 @@ def scale_file(infile, size=(1280, 1280), date_format='%Y%m%d_%H%M%S'):
 
 
 if __name__ == '__main__':
-    # TODO: configurable size (command line)
     default_dateformat_help = exif_rename.default_dateformat.replace('%', '%%')
     parser = argparse.ArgumentParser()
 
     # Files to process
-    parser.add_argument('files', nargs='+', metavar='FILE', type=Path,
-                        help='List of files to process')
+    parser.add_argument(
+        'files', nargs='+', metavar='FILE', type=Path,
+        help='List of files to process')
 
-    parser.add_argument('-f', '--date-format', action='store',
-                        metavar='fmt',
-                        help='Specify a custom date format (default '
-                        f'{default_dateformat_help}, see man (3) '
-                        'strftime for the format specification)')
+    parser.add_argument(
+        '-f', '--date-format', action='store', metavar='fmt',
+        help='Specify a custom date format (default '
+        f'{default_dateformat_help}, see man (3) strftime for '
+        'the format specification)')
+
+    parser.add_argument(
+        '-s', '--size', type=int, default=1280,
+        help='The maximum dimension of the scaled image')
 
     # enable bash completion if argcomplete is available
     try:
@@ -84,4 +88,7 @@ if __name__ == '__main__':
     combined_args = ChainMap(cmd_args, conf_args, exif_rename.default_conf)
 
     for f in combined_args['files']:
-        scale_file(f, date_format=combined_args['date_format'])
+        scale_file(
+            f,
+            size=(combined_args['size'], combined_args['size']),
+            date_format=combined_args['date_format'])
