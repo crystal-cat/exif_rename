@@ -1,9 +1,11 @@
 #!/usr/bin/python3
+import argparse
 import exif_rename
 import hashlib
 import itertools
 import logging
 import logging.handlers
+import os
 import queue
 import shlex
 import shutil
@@ -14,6 +16,7 @@ from collections import ChainMap
 from datetime import datetime
 from exif_rename import DateSource
 from pathlib import Path
+from unittest.mock import patch
 
 datadir = Path(__file__).parent / 'test_data'
 
@@ -161,6 +164,22 @@ class ConfigTest(unittest.TestCase):
                              'date_source': 'exif,file-name',
                              'source_name_format': '%Y%m%d_%H%M%S'
                          })
+
+    @patch.dict(os.environ, {
+        'EXIF_RENAME_CONF': str(datadir / 'config' / 'partial.conf')})
+    def test_partial_config(self):
+        parser = argparse.ArgumentParser()
+        parser.add_argument("files", nargs="+", metavar="FILE", type=Path,
+                            help="List of files to process")
+        args = parser.parse_args(['FOO'])
+        conf = exif_rename.merge_args(args)
+        self.assertEqual(conf['pause_on_error'], False)
+        self.assertEqual(conf['mv_cmd'], None)
+        self.assertEqual(conf['date_format'], '%Y%m%d_%H%M%S')
+        self.assertEqual(conf['date_source'], 'exif')
+        self.assertEqual(conf['date_sources'], [DateSource.EXIF])
+        self.assertEqual(conf['source_name_format'], '%Y%m%d_%H%M%S')
+        self.assertEqual(conf['files'], [Path('FOO')])
 
 
 class MoveTest(unittest.TestCase):
