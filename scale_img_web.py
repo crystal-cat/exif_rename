@@ -16,7 +16,7 @@ There is NO WARRANTY, to the extent permitted by law.
 """
 import argparse
 import exif_rename
-from collections import ChainMap
+import sys
 from contextlib import ExitStack
 from pathlib import Path
 from PIL import Image
@@ -80,15 +80,11 @@ if __name__ == '__main__':
         pass
 
     args = parser.parse_args()
-    cmd_args = {k: v for k, v in vars(args).items() if v is not None}
-
     try:
-        conf_args = exif_rename.read_config('~/.exif_rename.conf')
-    except FileNotFoundError:
-        # It's okay if there is no config file.
-        conf_args = {}
-
-    combined_args = ChainMap(cmd_args, conf_args, exif_rename.default_conf)
+        combined_args = exif_rename.merge_args(args, '~/.exif_rename.conf')
+    except exif_rename.CommandLineParseException as e:
+        print(e, file=sys.stderr)
+        sys.exit(1)
 
     for f in combined_args['files']:
         scale_file(
