@@ -81,7 +81,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     try:
-        combined_args = exif_rename.merge_args(args, '~/.exif_rename.conf')
+        combined_args = exif_rename.merge_args(args)
     except exif_rename.CommandLineParseException as e:
         print(e, file=sys.stderr)
         sys.exit(1)
