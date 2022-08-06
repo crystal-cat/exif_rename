@@ -20,6 +20,7 @@ import argparse
 import configparser
 import datetime
 import logging
+import os
 import re
 import shlex
 import subprocess
@@ -366,14 +367,37 @@ def read_config(conffile):
     return result
 
 
-def merge_args(args, conffile):
+def merge_args(args, conffile=None):
+    """Merge the passed in command line arguments with configuration file
+    and defaults.
+
+    "args" must be the argparse.Namespace object returned by the
+    argument parser.
+
+    "conffile" is the path of the configuration file to read. If None
+    (the default) the path is read from the environment variable
+    EXIF_RENAME_CONF if set (empty diables configuration), otherwise
+    it defaults to ~/.exif_rename.conf.
+
+    Returns a dict of the arguments.
+
+    """
+
     cmd_args = {k: v for k, v in vars(args).items() if v is not None}
 
-    try:
-        conf_args = read_config(conffile)
-    except FileNotFoundError:
-        # It's okay if there is no config file.
-        conf_args = {}
+    if conffile is None:
+        try:
+            conffile = os.environ['EXIF_RENAME_CONF']
+        except KeyError:
+            conffile = '~/.exif_rename.conf'
+
+    conf_args = {}
+    if len(conffile) > 0:
+        try:
+            conf_args = read_config(conffile)
+        except FileNotFoundError:
+            # It's okay if there is no config file.
+            pass
 
     combined_args = ChainMap(cmd_args, conf_args, default_conf)
 
@@ -450,7 +474,7 @@ def main(command_line):
 
     args = parser.parse_args(args=command_line)
     try:
-        combined_args = merge_args(args, '~/.exif_rename.conf')
+        combined_args = merge_args(args)
     except CommandLineParseException as e:
         print(e, file=sys.stderr)
         sys.exit(1)
