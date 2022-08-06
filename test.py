@@ -1,7 +1,9 @@
 #!/usr/bin/python3
 import argparse
+import contextlib
 import exif_rename
 import hashlib
+import io
 import itertools
 import logging
 import logging.handlers
@@ -354,6 +356,47 @@ class MoveTest(unittest.TestCase):
         args.extend(str(f) for f in self.args['files'])
         exif_rename.main(args)
         self.check_move()
+
+    def test_main_no_args(self):
+        """exit with error on empty command line"""
+        with self.assertRaises(SystemExit) as cm:
+            with contextlib.redirect_stderr(io.StringIO()) as capture:
+                exif_rename.main([])
+        self.assertGreater(cm.exception.code, 0)
+        s = capture.getvalue()
+        self.assertIn(f'usage: {Path(__file__).name}', s)
+        self.assertIn('error: the following arguments are required: FILE', s)
+
+    def test_main_unknown_args(self):
+        """exit with error on unknown argument"""
+        with self.assertRaises(SystemExit) as cm:
+            with contextlib.redirect_stderr(io.StringIO()) as capture:
+                exif_rename.main(['--woof', 'x.jpg'])
+        self.assertGreater(cm.exception.code, 0)
+        s = capture.getvalue()
+        self.assertIn(f'usage: {Path(__file__).name}', s)
+        self.assertIn('error: unrecognized arguments: --woof', s)
+
+    def test_main_version(self):
+        """test --version option"""
+        with self.assertRaises(SystemExit) as cm:
+            with contextlib.redirect_stdout(io.StringIO()) as capture:
+                exif_rename.main(['--version'])
+        self.assertEqual(cm.exception.code, 0)
+        s = capture.getvalue()
+        self.assertIn(f'(version {exif_rename.__version__})', s)
+
+    def test_main_help(self):
+        """test --help option"""
+        with self.assertRaises(SystemExit) as cm:
+            with contextlib.redirect_stdout(io.StringIO()) as capture:
+                exif_rename.main(['--help'])
+        self.assertEqual(cm.exception.code, 0)
+        s = capture.getvalue()
+        self.assertIn('positional arguments:', s)
+        self.assertIn('options:', s)
+        self.assertIn('Program execution:', s)
+        self.assertIn('Date options:', s)
 
 
 if __name__ == '__main__':
