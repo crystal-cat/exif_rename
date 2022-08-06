@@ -366,6 +366,23 @@ def read_config(conffile):
     return result
 
 
+def merge_args(args, conffile):
+    cmd_args = {k: v for k, v in vars(args).items() if v is not None}
+
+    try:
+        conf_args = read_config(conffile)
+    except FileNotFoundError:
+        # It's okay if there is no config file.
+        conf_args = {}
+
+    combined_args = ChainMap(cmd_args, conf_args, default_conf)
+
+    # Do additional parsing, may raise CommandLineParseException
+    combined_args['date_sources'] = parse_date_sources(combined_args)
+
+    return combined_args
+
+
 def main(command_line):
     default_dateformat_help = default_dateformat.replace('%', '%%')
     parser = argparse.ArgumentParser(
@@ -432,19 +449,8 @@ def main(command_line):
         pass
 
     args = parser.parse_args(args=command_line)
-    cmd_args = {k: v for k, v in vars(args).items() if v is not None}
-
     try:
-        conf_args = read_config('~/.exif_rename.conf')
-    except FileNotFoundError:
-        # It's okay if there is no config file.
-        conf_args = {}
-
-    combined_args = ChainMap(cmd_args, conf_args, default_conf)
-
-    try:
-        # Do additional parsing
-        combined_args['date_sources'] = parse_date_sources(combined_args)
+        combined_args = merge_args(args, '~/.exif_rename.conf')
     except CommandLineParseException as e:
         print(e, file=sys.stderr)
         sys.exit(1)
