@@ -377,6 +377,15 @@ class MoveTest(unittest.TestCase):
         self.assertIn(f'usage: {Path(__file__).name}', s)
         self.assertIn('error: unrecognized arguments: --woof', s)
 
+    def test_main_invalid_date_source(self):
+        """exit with error on invalid date source"""
+        with self.assertRaises(SystemExit) as cm:
+            with contextlib.redirect_stderr(io.StringIO()) as capture:
+                exif_rename.main(['--date-source', 'guess', 'x.jpg'])
+        self.assertGreater(cm.exception.code, 0)
+        s = capture.getvalue()
+        self.assertEqual('Unknown date source: guess\n', s)
+
     def test_main_version(self):
         """test --version option"""
         with self.assertRaises(SystemExit) as cm:
