@@ -9,6 +9,7 @@ import logging
 import logging.handlers
 import os
 import queue
+import re
 import shlex
 import shutil
 import sys
@@ -356,6 +357,40 @@ class MoveTest(unittest.TestCase):
         args.extend(str(f) for f in self.args['files'])
         exif_rename.main(args)
         self.check_move()
+
+    def test_main_simulate(self):
+        """call main() with --simulate"""
+        args = ['--date-source', 'exif,file-name',
+                '--source-name-format', '%Y%m%d_%H%M%S.jpg',
+                '--date-format', '%Y%m%d_%H%M%S',
+                '--simulate']
+        args.extend(str(f) for f in self.args['files'])
+
+        with self.assertLogs('exif_rename', logging.INFO) as cm:
+            exif_rename.main(args)
+        # ensure there are log messages for all expected files
+        self.assertEqual(len(cm.records), 3)
+
+        # capture basenames for source and destination filenames
+        # because the directory varies by test run
+        log_re = re.compile(
+            r'(?:.+/)(?P<source>\w+\.jpg) -\(exif\)-> '
+            r'(?:.+/)(?P<dest>\d{8}_\d{6}(?:-\d+)?\.jpg)')
+
+        dest_names = set()
+        for r in cm.records:
+            m = log_re.match(r.getMessage())
+            self.assertIsNotNone(m)
+            # check that each reported destination file shows up in
+            # the expected names for that file
+            source = m.group('source')
+            dest = m.group('dest')
+            with self.subTest(source=source, dest=dest):
+                self.assertIn(dest, self.mapping[datadir / source])
+            dest_names.add(dest)
+
+        # ensure all destination names are unique
+        self.assertEqual(len(dest_names), 3)
 
     def test_main_no_args(self):
         """exit with error on empty command line"""
