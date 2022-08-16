@@ -407,7 +407,7 @@ def merge_args(args, conffile=None):
     return combined_args
 
 
-def main(command_line):
+def main(command_line=None):
     default_dateformat_help = default_dateformat.replace('%', '%%')
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -491,4 +491,4 @@ def main(command_line):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    main()
