@@ -17,6 +17,11 @@ dependencies = [
     "exifread",
 ]
 
+[project.optional-dependencies]
+tests = [
+    'nox',
+]
+
 [project.urls]
 "Homepage" = "https://github.com/crystal-cat/exif_rename"
 "Bug Tracker" = "https://github.com/crystal-cat/exif_rename/issues"
