@@ -19,12 +19,12 @@ Written by Krista Karppinen, based on a bash script by Fiona Klute.
 import argparse
 import configparser
 import datetime
+import exifread
 import logging
 import os
 import re
 import shlex
 import subprocess
-import struct
 import sys
 from collections import ChainMap, defaultdict, namedtuple
 from enum import Enum
@@ -62,31 +62,7 @@ exif_date_pattern = \
     re.compile(r'^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})$')
 
 
-def _get_exif_timestamp_piexif(filename):
-    try:
-        exif_dict = piexif.load(filename)
-    except piexif.InvalidImageDataError as e:
-        raise TimestampReadException(str(e))
-    except struct.error as e:
-        raise TimestampReadException(f"Possibly corrupt EXIF data ({e})")
-
-    if len(exif_dict["Exif"]) == 0:
-        raise TimestampReadException(
-            f"File {filename} does not contain any EXIF data!")
-
-    if piexif.ExifIFD.DateTimeDigitized not in exif_dict["Exif"]:
-        raise TimestampReadException(
-            f"File {filename} does not contain an EXIF timestamp.")
-
-    datetime_str = exif_dict["Exif"][piexif.ExifIFD.DateTimeDigitized].decode()
-    datetime_match = exif_date_pattern.match(datetime_str).groups()
-    datetime_tuple = list(map(int, datetime_match))
-    return datetime.datetime(
-            datetime_tuple[0], datetime_tuple[1], datetime_tuple[2],
-            datetime_tuple[3], datetime_tuple[4], datetime_tuple[5])
-
-
-def _get_exif_timestamp_exifread(filename):
+def get_exif_timestamp(filename):
     with open(filename, 'rb') as fh:
         exif_dict = exifread.process_file(fh)
 
@@ -100,16 +76,6 @@ def _get_exif_timestamp_exifread(filename):
     return datetime.datetime(
             datetime_tuple[0], datetime_tuple[1], datetime_tuple[2],
             datetime_tuple[3], datetime_tuple[4], datetime_tuple[5])
-
-
-# Decide which function to use as "get_exif_timestamp" depending on
-# which EXIF library is available.
-try:
-    import piexif
-    get_exif_timestamp = _get_exif_timestamp_piexif
-except ImportError:
-    import exifread
-    get_exif_timestamp = _get_exif_timestamp_exifread
 
 
 def get_filename_timestamp(filename, filename_format):
