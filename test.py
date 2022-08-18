@@ -22,6 +22,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 datadir = Path(__file__).parent / 'test_data'
+exif_rename.logger.setLevel(logging.DEBUG)
 
 
 def args_mock(**kwargs):
@@ -444,6 +445,4 @@ class MoveTest(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(format='%(filename)s:%(lineno)s: %(message)s',
-                        level=logging.DEBUG)
-    unittest.main(verbosity=2)
+    unittest.main(verbosity=2, buffer=True)
