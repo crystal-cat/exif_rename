@@ -8,17 +8,17 @@ def lint(session):
     session.run('flake8', '--statistics', '.')
 
 
-@nox.session
+@nox.session(python=['3.9', '3.10'])
 def test(session):
-    """Run tests, gather coverage data."""
+    """Run tests, report coverage."""
     session.install('coverage', '.')
-    session.run('coverage', 'run', 'test.py')
-    session.notify('coverage')
+    session.run('coverage', 'run', '--parallel-mode', 'test.py')
 
 
 @nox.session
 def coverage(session):
     """Generage coverage report."""
     session.install('coverage')
+    session.run('coverage', 'combine')
     session.run('coverage', 'report', '-m', 'exif_rename.py')
     session.run('coverage', 'html', 'exif_rename.py')
