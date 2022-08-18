@@ -399,7 +399,7 @@ class MoveTest(unittest.TestCase):
                 exif_rename.main([])
         self.assertGreater(cm.exception.code, 0)
         s = capture.getvalue()
-        self.assertIn(f'usage: {Path(__file__).name}', s)
+        self.assertIn('usage: ', s)
         self.assertIn('error: the following arguments are required: FILE', s)
 
     def test_main_unknown_args(self):
@@ -409,7 +409,7 @@ class MoveTest(unittest.TestCase):
                 exif_rename.main(['--woof', 'x.jpg'])
         self.assertGreater(cm.exception.code, 0)
         s = capture.getvalue()
-        self.assertIn(f'usage: {Path(__file__).name}', s)
+        self.assertIn('usage: ', s)
         self.assertIn('error: unrecognized arguments: --woof', s)
 
     def test_main_invalid_date_source(self):
