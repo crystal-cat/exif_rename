@@ -22,6 +22,9 @@ jobs:
       - name: Run tests and report coverage
         run: |
           nox --report nox.json
+      - name: Create job summary
+        if: always()
+        run: |
           python nox-report.py nox.json >>$GITHUB_STEP_SUMMARY
       - name: Store coverage report
         uses: actions/upload-artifact@v3
