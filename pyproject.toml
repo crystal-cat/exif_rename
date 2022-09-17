@@ -19,7 +19,8 @@ dependencies = [
 
 [project.optional-dependencies]
 tests = [
-    'nox',
+    'pytest',
+    'coverage',
 ]
 
 [project.urls]
@@ -32,3 +33,6 @@ tests = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+python_files = "test.py test_*.py *_test.py"

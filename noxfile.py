@@ -11,8 +11,8 @@ def lint(session):
 @nox.session(python=['3.9', '3.10'])
 def test(session):
     """Run tests, report coverage."""
-    session.install('coverage', '.')
-    session.run('coverage', 'run', '--parallel-mode', 'test.py')
+    session.install('.[tests]')
+    session.run('coverage', 'run', '--parallel-mode', '-m', 'pytest', '-v')
 
 
 @nox.session
