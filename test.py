@@ -50,6 +50,49 @@ def sammy_sleepy():
     return datadir / 'sammy_sleepy.jpg'
 
 
+@pytest.fixture
+def sample_mapping():
+    """Return a dict mapping sample input files to their expected
+    (possible) names after renaming"""
+    return {
+        datadir / 'sammy_awake.jpg': ['20190417_174537.jpg',
+                                      '20190417_174537-1.jpg'],
+        datadir / 'sammy_awake_commented.jpg': ['20190417_174537.jpg',
+                                                '20190417_174537-1.jpg'],
+        datadir / 'sammy_sleepy.jpg': ['20190207_153710.jpg'],
+        datadir / '20191027_121401.jpg': ['20191027_121401.jpg']
+    }
+
+
+@pytest.fixture
+def hashed_samples(sample_mapping):
+    """Assuming the keys in 'mapping' are Path objects, return a new dict
+    with the SHA1 hashes of the file contents as keys and the same
+    values.
+    """
+    hashes = dict()
+    for file, names in sample_mapping.items():
+        sha = hashlib.sha1()
+        sha.update(file.read_bytes())
+        hashes[sha.hexdigest()] = names
+    return hashes
+
+
+@pytest.fixture
+def sample_files(tmp_path, sample_mapping):
+    """Copy files listed in sample_mapping into tmp_path."""
+    for f in sample_mapping:
+        if not f.is_dir():
+            shutil.copy2(f, tmp_path)
+    return [x for x in tmp_path.iterdir()
+            if x.suffix == '.jpg']
+
+
+@pytest.fixture
+def args_files(sample_files):
+    return args_mock(files=sample_files, date_sources=['exif', 'file-name'])
+
+
 class TestTimestamp:
     def test_sammy_awake(self, args):
         assert (DateSource.EXIF, datetime(2019, 4, 17, 17, 45, 37)) \
@@ -198,15 +241,7 @@ class MoveTest(unittest.TestCase):
         return hashes
 
     def check_move(self):
-        found = 0
-        for f in Path(self.tempdir.name).iterdir():
-            sha = hashlib.sha1()
-            sha.update(f.read_bytes())
-            fhash = sha.hexdigest()
-            if fhash in self.hashes:
-                self.assertTrue(f.name in self.hashes[fhash])
-                found += 1
-        self.assertEqual(found, len(self.hashes))
+        check_move(Path(self.tempdir.name), self.hashes)
 
     @classmethod
     def setUpClass(cls):
@@ -336,27 +371,41 @@ class MoveTest(unittest.TestCase):
                          ChainMap(dict((k, 1) for k in mapping.keys()),
                                   dict((k, 0) for k in mapping.values())))
 
-    def test_main(self):
+
+def check_move(tmp_path, hashes):
+    found = 0
+    for f in tmp_path.iterdir():
+        sha = hashlib.sha1()
+        sha.update(f.read_bytes())
+        fhash = sha.hexdigest()
+        if fhash in hashes:
+            assert f.name in hashes[fhash]
+            found += 1
+    assert found == len(hashes)
+
+
+class TestMain:
+    def test_main(self, tmp_path, args_files, hashed_samples):
         # Exact command line parameters!
         args = ['--date-source', 'exif,file-name',
                 '--source-name-format', '%Y%m%d_%H%M%S.jpg',
                 '--date-format', '%Y%m%d_%H%M%S']
-        args.extend(str(f) for f in self.args['files'])
+        args.extend(str(f) for f in args_files['files'])
         exif_rename.main(args)
-        self.check_move()
+        check_move(tmp_path, hashed_samples)
 
-    def test_main_simulate(self):
+    def test_main_simulate(self, args_files, sample_mapping, caplog):
         """call main() with --simulate"""
         args = ['--date-source', 'exif,file-name',
                 '--source-name-format', '%Y%m%d_%H%M%S.jpg',
                 '--date-format', '%Y%m%d_%H%M%S',
                 '--simulate']
-        args.extend(str(f) for f in self.args['files'])
+        args.extend(str(f) for f in args_files['files'])
 
-        with self.assertLogs('exif_rename', logging.INFO) as cm:
+        with caplog.at_level(logging.INFO, logger='exif_rename'):
             exif_rename.main(args)
         # ensure there are log messages for all expected files
-        self.assertEqual(len(cm.records), 3)
+        assert len(caplog.records) == 3
 
         # capture basenames for source and destination filenames
         # because the directory varies by test run
@@ -365,69 +414,68 @@ class MoveTest(unittest.TestCase):
             r'(?:.+/)(?P<dest>\d{8}_\d{6}(?:-\d+)?\.jpg)')
 
         dest_names = set()
-        for r in cm.records:
+        for r in caplog.records:
             m = log_re.match(r.getMessage())
-            self.assertIsNotNone(m)
+            assert m is not None
             # check that each reported destination file shows up in
             # the expected names for that file
             source = m.group('source')
             dest = m.group('dest')
-            with self.subTest(source=source, dest=dest):
-                self.assertIn(dest, self.mapping[datadir / source])
+            assert dest in sample_mapping[datadir / source]
             dest_names.add(dest)
 
         # ensure all destination names are unique
-        self.assertEqual(len(dest_names), 3)
+        assert len(dest_names) == 3
 
     def test_main_no_args(self):
         """exit with error on empty command line"""
-        with self.assertRaises(SystemExit) as cm:
+        with pytest.raises(SystemExit) as cm:
             with contextlib.redirect_stderr(io.StringIO()) as capture:
                 exif_rename.main([])
-        self.assertGreater(cm.exception.code, 0)
+        assert cm.value.code > 0
         s = capture.getvalue()
-        self.assertIn('usage: ', s)
-        self.assertIn('error: the following arguments are required: FILE', s)
+        assert 'usage: ' in s
+        assert 'error: the following arguments are required: FILE' in s
 
     def test_main_unknown_args(self):
         """exit with error on unknown argument"""
-        with self.assertRaises(SystemExit) as cm:
+        with pytest.raises(SystemExit) as cm:
             with contextlib.redirect_stderr(io.StringIO()) as capture:
                 exif_rename.main(['--woof', 'x.jpg'])
-        self.assertGreater(cm.exception.code, 0)
+        assert cm.value.code > 0
         s = capture.getvalue()
-        self.assertIn('usage: ', s)
-        self.assertIn('error: unrecognized arguments: --woof', s)
+        assert 'usage: ' in s
+        assert 'error: unrecognized arguments: --woof' in s
 
     def test_main_invalid_date_source(self):
         """exit with error on invalid date source"""
-        with self.assertRaises(SystemExit) as cm:
+        with pytest.raises(SystemExit) as cm:
             with contextlib.redirect_stderr(io.StringIO()) as capture:
                 exif_rename.main(['--date-source', 'guess', 'x.jpg'])
-        self.assertGreater(cm.exception.code, 0)
+        assert cm.value.code > 0
         s = capture.getvalue()
-        self.assertEqual('Unknown date source: guess\n', s)
+        assert 'Unknown date source: guess\n' == s
 
     def test_main_version(self):
         """test --version option"""
-        with self.assertRaises(SystemExit) as cm:
+        with pytest.raises(SystemExit) as cm:
             with contextlib.redirect_stdout(io.StringIO()) as capture:
                 exif_rename.main(['--version'])
-        self.assertEqual(cm.exception.code, 0)
+        assert cm.value.code == 0
         s = capture.getvalue()
-        self.assertIn(f'(version {exif_rename.__version__})', s)
+        assert f'(version {exif_rename.__version__})' in s
 
     def test_main_help(self):
         """test --help option"""
-        with self.assertRaises(SystemExit) as cm:
+        with pytest.raises(SystemExit) as cm:
             with contextlib.redirect_stdout(io.StringIO()) as capture:
                 exif_rename.main(['--help'])
-        self.assertEqual(cm.exception.code, 0)
+        assert cm.value.code == 0
         s = capture.getvalue()
-        self.assertIn('positional arguments:', s)
-        self.assertIn('options:', s)
-        self.assertIn('Program execution:', s)
-        self.assertIn('Date options:', s)
+        assert 'positional arguments:' in s
+        assert 'options:' in s
+        assert 'Program execution:' in s
+        assert 'Date options:' in s
 
 
 if __name__ == '__main__':
