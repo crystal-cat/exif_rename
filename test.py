@@ -1,9 +1,7 @@
 #!/usr/bin/python3
 import argparse
-import contextlib
 import exif_rename
 import hashlib
-import io
 import itertools
 import logging
 import logging.handlers
@@ -376,51 +374,45 @@ class TestMain:
         # ensure all destination names are unique
         assert len(dest_names) == 3
 
-    def test_main_no_args(self):
+    def test_main_no_args(self, capsys):
         """exit with error on empty command line"""
         with pytest.raises(SystemExit) as cm:
-            with contextlib.redirect_stderr(io.StringIO()) as capture:
-                exif_rename.main([])
+            exif_rename.main([])
         assert cm.value.code > 0
-        s = capture.getvalue()
+        s = capsys.readouterr().err
         assert 'usage: ' in s
         assert 'error: the following arguments are required: FILE' in s
 
-    def test_main_unknown_args(self):
+    def test_main_unknown_args(self, capsys):
         """exit with error on unknown argument"""
         with pytest.raises(SystemExit) as cm:
-            with contextlib.redirect_stderr(io.StringIO()) as capture:
-                exif_rename.main(['--woof', 'x.jpg'])
+            exif_rename.main(['--woof', 'x.jpg'])
         assert cm.value.code > 0
-        s = capture.getvalue()
+        s = capsys.readouterr().err
         assert 'usage: ' in s
         assert 'error: unrecognized arguments: --woof' in s
 
-    def test_main_invalid_date_source(self):
+    def test_main_invalid_date_source(self, capsys):
         """exit with error on invalid date source"""
         with pytest.raises(SystemExit) as cm:
-            with contextlib.redirect_stderr(io.StringIO()) as capture:
-                exif_rename.main(['--date-source', 'guess', 'x.jpg'])
+            exif_rename.main(['--date-source', 'guess', 'x.jpg'])
         assert cm.value.code > 0
-        s = capture.getvalue()
-        assert 'Unknown date source: guess\n' == s
+        assert 'Unknown date source: guess\n' == capsys.readouterr().err
 
-    def test_main_version(self):
+    def test_main_version(self, capsys):
         """test --version option"""
         with pytest.raises(SystemExit) as cm:
-            with contextlib.redirect_stdout(io.StringIO()) as capture:
-                exif_rename.main(['--version'])
+            exif_rename.main(['--version'])
         assert cm.value.code == 0
-        s = capture.getvalue()
-        assert f'(version {exif_rename.__version__})' in s
+        assert f'(version {exif_rename.__version__})' \
+            in capsys.readouterr().out
 
-    def test_main_help(self):
+    def test_main_help(self, capsys):
         """test --help option"""
         with pytest.raises(SystemExit) as cm:
-            with contextlib.redirect_stdout(io.StringIO()) as capture:
-                exif_rename.main(['--help'])
+            exif_rename.main(['--help'])
         assert cm.value.code == 0
-        s = capture.getvalue()
+        s = capsys.readouterr().out
         assert 'positional arguments:' in s
         assert 'options:' in s
         assert 'Program execution:' in s
