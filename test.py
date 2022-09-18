@@ -7,7 +7,6 @@ import io
 import itertools
 import logging
 import logging.handlers
-import os
 import pytest
 import queue
 import re
@@ -20,7 +19,6 @@ from collections import ChainMap
 from datetime import datetime
 from exif_rename import DateSource
 from pathlib import Path
-from unittest.mock import patch
 
 datadir = Path(__file__).parent / 'test_data'
 exif_rename.logger.setLevel(logging.DEBUG)
@@ -122,62 +120,56 @@ class TestTimestamp:
         assert not exif_rename.matches_timestamp(t, timestamp, ext)
 
 
-class ConfigTest(unittest.TestCase):
-    def setUp(self):
-        self.args = args_mock(date_source='exif')
+class TestConfig:
+    def test_date_sources(self, args):
+        args['date_source'] = 'exif'
+        assert exif_rename.parse_date_sources(args) == [DateSource.EXIF]
 
-    def test_date_sources(self):
-        self.assertEqual(exif_rename.parse_date_sources(self.args),
-                         [DateSource.EXIF])
+    def test_date_sources_split(self, args):
+        args['date_source'] = 'exif,file-name'
+        assert exif_rename.parse_date_sources(args) \
+            == [DateSource.EXIF, DateSource.FILE_NAME]
 
-    def test_date_sources_split(self):
-        self.args['date_source'] = 'exif,file-name'
-        self.assertEqual(exif_rename.parse_date_sources(self.args),
-                         [DateSource.EXIF, DateSource.FILE_NAME])
+    def test_date_sources_filename_no_format(self, args):
+        args['date_source'] = 'exif,file-name'
+        args['source_name_format'] = None
+        with pytest.raises(exif_rename.CommandLineParseException):
+            exif_rename.parse_date_sources(args)
 
-    def test_date_sources_filename_no_format(self):
-        self.args['date_source'] = 'exif,file-name'
-        self.args['source_name_format'] = None
-        self.assertRaises(exif_rename.CommandLineParseException,
-                          exif_rename.parse_date_sources,
-                          self.args)
-
-    def test_date_sources_unknown(self):
-        self.args['date_source'] = 'meow'
-        self.assertRaises(exif_rename.CommandLineParseException,
-                          exif_rename.parse_date_sources,
-                          self.args)
+    def test_date_sources_unknown(self, args):
+        args['date_source'] = 'meow'
+        with pytest.raises(exif_rename.CommandLineParseException):
+            exif_rename.parse_date_sources(args)
 
     def test_empty_config(self):
         conf = exif_rename.read_config(datadir / 'config' / 'empty.conf')
-        self.assertEqual(conf, dict())
+        assert conf == dict()
 
     def test_full_config(self):
         conf = exif_rename.read_config(datadir / 'config' / 'full.conf')
-        self.assertEqual(conf,
-                         {
-                             'pause_on_error': True,
-                             'mv_cmd': 'meow',
-                             'date_format': '%Y%m%d_%H%M%S',
-                             'date_source': 'exif,file-name',
-                             'source_name_format': '%Y%m%d_%H%M%S'
-                         })
+        assert conf == {
+            'pause_on_error': True,
+            'mv_cmd': 'meow',
+            'date_format': '%Y%m%d_%H%M%S',
+            'date_source': 'exif,file-name',
+            'source_name_format': '%Y%m%d_%H%M%S'
+        }
 
-    @patch.dict(os.environ, {
-        'EXIF_RENAME_CONF': str(datadir / 'config' / 'partial.conf')})
-    def test_partial_config(self):
+    def test_partial_config(self, monkeypatch):
+        monkeypatch.setenv(
+            'EXIF_RENAME_CONF', str(datadir / 'config' / 'partial.conf'))
         parser = argparse.ArgumentParser()
         parser.add_argument("files", nargs="+", metavar="FILE", type=Path,
                             help="List of files to process")
         args = parser.parse_args(['FOO'])
         conf = exif_rename.merge_args(args)
-        self.assertEqual(conf['pause_on_error'], False)
-        self.assertEqual(conf['mv_cmd'], None)
-        self.assertEqual(conf['date_format'], '%Y%m%d_%H%M%S')
-        self.assertEqual(conf['date_source'], 'exif')
-        self.assertEqual(conf['date_sources'], [DateSource.EXIF])
-        self.assertEqual(conf['source_name_format'], '%Y%m%d_%H%M%S')
-        self.assertEqual(conf['files'], [Path('FOO')])
+        assert conf['pause_on_error'] is False
+        assert conf['mv_cmd'] is None
+        assert conf['date_format'] == '%Y%m%d_%H%M%S'
+        assert conf['date_source'] == 'exif'
+        assert conf['date_sources'] == [DateSource.EXIF]
+        assert conf['source_name_format'] == '%Y%m%d_%H%M%S'
+        assert conf['files'] == [Path('FOO')]
 
 
 class MoveTest(unittest.TestCase):
