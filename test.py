@@ -8,13 +8,11 @@ import itertools
 import logging
 import logging.handlers
 import pytest
-import queue
 import re
 import shlex
 import shutil
 import sys
 import tempfile
-import unittest
 from collections import ChainMap
 from datetime import datetime
 from exif_rename import DateSource
@@ -215,107 +213,74 @@ class TestConfig:
         assert conf['files'] == [Path('FOO')]
 
 
-class MoveTest(unittest.TestCase):
-    # The mapping contains expected (possible) file names for each
-    # input file
-    mapping = {
-        datadir / 'sammy_awake.jpg': ['20190417_174537.jpg',
-                                      '20190417_174537-1.jpg'],
-        datadir / 'sammy_awake_commented.jpg': ['20190417_174537.jpg',
-                                                '20190417_174537-1.jpg'],
-        datadir / 'sammy_sleepy.jpg': ['20190207_153710.jpg'],
-        datadir / '20191027_121401.jpg': ['20191027_121401.jpg']
-    }
+def check_move(tmp_path, hashes):
+    found = 0
+    for f in tmp_path.iterdir():
+        sha = hashlib.sha1()
+        sha.update(f.read_bytes())
+        fhash = sha.hexdigest()
+        if fhash in hashes:
+            assert f.name in hashes[fhash]
+            found += 1
+    assert found == len(hashes)
 
-    @staticmethod
-    def hash_files(mapping):
-        """Assuming the keys in 'mapping' are Path objects, return a new dict
-        with the SHA1 hashes of the file contents as keys and the same
-        values.
-        """
-        hashes = dict()
-        for file, names in mapping.items():
-            sha = hashlib.sha1()
-            sha.update(file.read_bytes())
-            hashes[sha.hexdigest()] = names
-        return hashes
 
-    def check_move(self):
-        check_move(Path(self.tempdir.name), self.hashes)
-
-    @classmethod
-    def setUpClass(cls):
-        # The hashes are used to identify files after moving
-        cls.hashes = cls.hash_files(cls.mapping)
-
-    def setUp(self):
-        self.tempdir = tempfile.TemporaryDirectory()
-        for f in self.mapping:
-            if not f.is_dir():
-                shutil.copy2(f, self.tempdir.name)
-        filelist = [x for x in Path(self.tempdir.name).iterdir()
-                    if x.suffix == '.jpg']
-        self.args = args_mock(files=filelist,
-                              date_sources=['exif', 'file-name'])
-
-    def tearDown(self):
-        self.tempdir.cleanup()
-
-    def test_renamer(self):
-        r = exif_rename.Renamer(self.args)
+class TestMove:
+    def test_renamer(self, tmp_path, args_files, hashed_samples):
+        r = exif_rename.Renamer(args_files)
         r.run()
-        self.check_move()
+        check_move(tmp_path, hashed_samples)
 
-    def test_renamer_mv_cmd(self):
+    def test_renamer_mv_cmd(
+            self, tmp_path, args_files, sample_mapping, hashed_samples):
         """Use test_data/script/mv_log.py to move the files. It logs all
         "src dst" pairs to the given logfile, so we can verify it
         really was the script that moved the files.
 
         """
         with tempfile.NamedTemporaryFile() as log:
-            self.args['mv_cmd'] = \
+            args_files['mv_cmd'] = \
                 (f'{shlex.quote(sys.executable)} '
                  f'{shlex.quote(str(datadir / "script" / "mv_log.py"))} '
                  f'{shlex.quote(log.name)}')
-            r = exif_rename.Renamer(self.args)
+            r = exif_rename.Renamer(args_files)
             r.run()
             logdata = log.read().decode()
 
-        self.check_move()
-        tempdir = Path(self.tempdir.name)
-        # Replace keys in self.mapping with source file basenames, and
-        # remove files not expected to move
-        mapping = dict((k.name, v) for k, v in self.mapping.items()
+        check_move(tmp_path, hashed_samples)
+        # Replace keys in sample_mapping with source file basenames,
+        # and remove files not expected to move
+        mapping = dict((k.name, v) for k, v in sample_mapping.items()
                        if [k.name] != v)
         found = 0
         for src, dst in ([Path(p) for p in line.split()]
                          for line in logdata.splitlines()):
-            self.assertEqual(src.parent, tempdir)
-            self.assertEqual(dst.parent, tempdir)
-            self.assertTrue(dst.name in mapping[src.name])
+            assert src.parent == tmp_path
+            assert dst.parent == tmp_path
+            assert dst.name in mapping[src.name]
             found += 1
-        self.assertEqual(found, len(mapping))
+        assert found == len(mapping)
 
-    def test_renamer_no_sources(self):
+    def test_renamer_no_sources(self, tmp_path, args_files, hashed_samples):
         # this way there will be no valid timestamp source for
         # 20191027_121401.jpg
-        self.args['date_sources'] = [DateSource.EXIF]
-        r = exif_rename.Renamer(self.args)
+        args_files['date_sources'] = [DateSource.EXIF]
+        r = exif_rename.Renamer(args_files)
         r.run()
-        self.check_move()
+        check_move(tmp_path, hashed_samples)
 
-    def test_renamer_skip_paths(self):
-        tempdir = Path(self.tempdir.name)
-        self.args['files'] += [tempdir, tempdir / 'does_not_exist.jpg']
-        r = exif_rename.Renamer(self.args)
+    def test_renamer_skip_paths(self, tmp_path, args_files, hashed_samples):
+        args_files['files'] += [tmp_path, tmp_path / 'does_not_exist.jpg']
+        r = exif_rename.Renamer(args_files)
         r.run()
-        self.check_move()
+        check_move(tmp_path, hashed_samples)
 
-    def test_renamer_simulate(self):
+    def test_renamer_simulate(
+            self, args_files, sample_mapping):
         """Check if the simulated_filelist of a Renamer contains exactly the
         expected items after a run()"""
-        self.args['simulate'] = True
-        r = exif_rename.Renamer(self.args)
+        args_files['simulate'] = True
+        r = exif_rename.Renamer(args_files)
         r.run()
 
         # To explain the magic below:
@@ -327,61 +292,41 @@ class MoveTest(unittest.TestCase):
         # 2. For the expected set we need to filter out files where
         # the names do not change, because those don't show up in the
         # simulation list.
-        self.assertEqual(
-            set(p.name for p, c in r.files_added_counter.items() if c > 0),
-            set(itertools.chain(*(v for k, v in self.mapping.items()
-                                  if [k.name] != v))))
+        assert set(p.name for p, c in r.files_added_counter.items() if c > 0) \
+            == set(itertools.chain(*(v for k, v in sample_mapping.items()
+                                     if [k.name] != v)))
 
         # Also check that the source file names are in the internal
         # list of removed files
-        self.assertEqual(
-            set(p.name for p, c in r.files_removed_counter.items() if c > 0),
-            set(k.name for k, v in self.mapping.items() if [k.name] != v))
+        assert \
+            set(p.name for p, c in r.files_removed_counter.items() if c > 0) \
+            == set(k.name for k, v in sample_mapping.items() if [k.name] != v)
 
-    def test_simulate_reuse_filename(self):
-        tempdir = Path(self.tempdir.name)
-        sleepy = tempdir / 'sammy_sleepy.jpg'
+    def test_simulate_reuse_filename(
+            self, tmp_path, args_files, caplog):
+        sleepy = tmp_path / 'sammy_sleepy.jpg'
         # this creates a conflict with both (!) "awake" pictures
-        sleepy.rename(tempdir / '20190417_174537.jpg')
+        sleepy.rename(tmp_path / '20190417_174537.jpg')
         # since Python 3.7 dict preserves order
-        mapping = dict((tempdir / k, tempdir / v) for k, v in [
+        mapping = dict((tmp_path / k, tmp_path / v) for k, v in [
             ('20190417_174537.jpg', '20190207_153710.jpg'),
             ('sammy_awake.jpg', '20190417_174537.jpg'),
             ('sammy_awake_commented.jpg', '20190417_174537-1.jpg'),
         ])
-        self.args['files'] = mapping.keys()
-        self.args['simulate'] = True
-        r = exif_rename.Renamer(self.args)
+        args_files['files'] = mapping.keys()
+        args_files['simulate'] = True
+        r = exif_rename.Renamer(args_files)
 
-        logger = logging.getLogger('exif_rename')
-        q = queue.SimpleQueue()
-        handler = logging.handlers.QueueHandler(q)
-        logger.addHandler(handler)
-        try:
+        with caplog.at_level(logging.INFO, logger='exif_rename'):
             r.run()
-        finally:
-            logger.removeHandler(handler)
 
+        logs = list(caplog.records)
         for k, v in mapping.items():
-            self.assertEqual(q.get_nowait().getMessage(),
-                             f'{k!s} -(exif)-> {v!s}')
-        self.assertEqual(r.files_added_counter,
-                         dict((k, 1) for k in mapping.values()))
-        self.assertEqual(dict(r.files_removed_counter),
-                         ChainMap(dict((k, 1) for k in mapping.keys()),
-                                  dict((k, 0) for k in mapping.values())))
-
-
-def check_move(tmp_path, hashes):
-    found = 0
-    for f in tmp_path.iterdir():
-        sha = hashlib.sha1()
-        sha.update(f.read_bytes())
-        fhash = sha.hexdigest()
-        if fhash in hashes:
-            assert f.name in hashes[fhash]
-            found += 1
-    assert found == len(hashes)
+            assert logs.pop(0).getMessage() == f'{k!s} -(exif)-> {v!s}'
+        assert r.files_added_counter == dict((k, 1) for k in mapping.values())
+        assert dict(r.files_removed_counter) \
+            == ChainMap(dict((k, 1) for k in mapping.keys()),
+                        dict((k, 0) for k in mapping.values()))
 
 
 class TestMain:
