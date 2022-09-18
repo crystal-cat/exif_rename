@@ -40,18 +40,20 @@ def args_mock(**kwargs):
 
 @pytest.fixture
 def args():
+    """Generic mock-up of parsed arguments."""
     return args_mock()
 
 
 @pytest.fixture
 def sammy_sleepy():
+    """Sample file: picture of sleepy Sammy. For reading only."""
     return datadir / 'sammy_sleepy.jpg'
 
 
 @pytest.fixture
 def sample_mapping():
-    """Return a dict mapping sample input files to their expected
-    (possible) names after renaming"""
+    """A dict mapping sample input files to their expected (possible)
+    names after renaming."""
     return {
         datadir / 'sammy_awake.jpg': ['20190417_174537.jpg',
                                       '20190417_174537-1.jpg'],
@@ -64,9 +66,9 @@ def sample_mapping():
 
 @pytest.fixture
 def hashed_samples(sample_mapping):
-    """Assuming the keys in 'mapping' are Path objects, return a new dict
-    with the SHA1 hashes of the file contents as keys and the same
-    values.
+    """Based on sample_mapping provide a dict with the SHA1 hashes of
+    the files contents as keys and the same values.
+
     """
     hashes = dict()
     for file, names in sample_mapping.items():
@@ -88,6 +90,8 @@ def sample_files(tmp_path, sample_mapping):
 
 @pytest.fixture
 def args_files(sample_files):
+    """Arguments mock-up with the file provided by sample_files as
+    files to handle and date sources set to EXIF and filename."""
     return args_mock(files=sample_files, date_sources=['exif', 'file-name'])
 
 
