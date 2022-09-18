@@ -48,7 +48,7 @@ def sammy_sleepy():
     return datadir / 'sammy_sleepy.jpg'
 
 
-@pytest.fixture
+@pytest.fixture(scope='session')
 def sample_mapping():
     """A dict mapping sample input files to their expected (possible)
     names after renaming."""
@@ -62,7 +62,7 @@ def sample_mapping():
     }
 
 
-@pytest.fixture
+@pytest.fixture(scope='session')
 def hashed_samples(sample_mapping):
     """Based on sample_mapping provide a dict with the SHA1 hashes of
     the files contents as keys and the same values.
