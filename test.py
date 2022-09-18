@@ -8,6 +8,7 @@ import itertools
 import logging
 import logging.handlers
 import os
+import pytest
 import queue
 import re
 import shlex
@@ -41,91 +42,84 @@ def args_mock(**kwargs):
     return args
 
 
-class TimestampTest(unittest.TestCase):
-    def setUp(self):
-        self.args = args_mock()
+@pytest.fixture
+def args():
+    return args_mock()
 
-    def test_sammy_awake(self):
-        self.assertEqual(
-            (DateSource.EXIF, datetime(2019, 4, 17, 17, 45, 37)),
-            exif_rename.get_timestamp(datadir / 'sammy_awake.jpg',
-                                      self.args['date_sources'],
-                                      self.args['source_name_format']))
 
-    def test_sammy_sleepy(self):
-        self.assertEqual(
-            (DateSource.EXIF, datetime(2019, 2, 7, 15, 37, 10)),
-            exif_rename.get_timestamp(datadir / 'sammy_sleepy.jpg',
-                                      self.args['date_sources'],
-                                      self.args['source_name_format']))
+@pytest.fixture
+def sammy_sleepy():
+    return datadir / 'sammy_sleepy.jpg'
 
-    def test_no_exif(self):
-        self.args['date_sources'] = [DateSource.EXIF, DateSource.FILE_NAME]
-        self.assertEqual(
-            (DateSource.FILE_NAME, datetime(2019, 10, 27, 12, 14, 1)),
-            exif_rename.get_timestamp(datadir / '20191027_121401.jpg',
-                                      self.args['date_sources'],
-                                      self.args['source_name_format']))
 
-    def test_unparsable_filename(self):
-        self.args['date_sources'] = [DateSource.FILE_NAME]
-        self.assertRaises(exif_rename.TimestampReadException,
-                          exif_rename.get_timestamp,
-                          datadir / 'sammy_sleepy.jpg',
-                          self.args['date_sources'],
-                          self.args['source_name_format'])
+class TestTimestamp:
+    def test_sammy_awake(self, args):
+        assert (DateSource.EXIF, datetime(2019, 4, 17, 17, 45, 37)) \
+            == exif_rename.get_timestamp(datadir / 'sammy_awake.jpg',
+                                         args['date_sources'],
+                                         args['source_name_format'])
 
-    def test_fallthrough_ctime(self):
-        self.args['date_sources'] = [DateSource.FILE_NAME,
-                                     DateSource.FILE_CREATED]
-        sleepy = datadir / 'sammy_sleepy.jpg'
-        self.assertEqual(
+    def test_sammy_sleepy(self, args, sammy_sleepy):
+        assert (DateSource.EXIF, datetime(2019, 2, 7, 15, 37, 10)) \
+            == exif_rename.get_timestamp(
+                sammy_sleepy, args['date_sources'], args['source_name_format'])
+
+    def test_no_exif(self, args):
+        args['date_sources'] = [DateSource.EXIF, DateSource.FILE_NAME]
+        assert (DateSource.FILE_NAME, datetime(2019, 10, 27, 12, 14, 1)) \
+            == exif_rename.get_timestamp(datadir / '20191027_121401.jpg',
+                                         args['date_sources'],
+                                         args['source_name_format'])
+
+    def test_unparsable_filename(self, args, sammy_sleepy):
+        args['date_sources'] = [DateSource.FILE_NAME]
+        with pytest.raises(exif_rename.TimestampReadException):
+            exif_rename.get_timestamp(
+                sammy_sleepy, args['date_sources'], args['source_name_format'])
+
+    def test_fallthrough_ctime(self, args, sammy_sleepy):
+        args['date_sources'] = [DateSource.FILE_NAME, DateSource.FILE_CREATED]
+        assert \
             (DateSource.FILE_CREATED,
-             datetime.fromtimestamp(sleepy.stat().st_ctime)),
-            exif_rename.get_timestamp(sleepy, self.args['date_sources'],
-                                      self.args['source_name_format']))
+             datetime.fromtimestamp(sammy_sleepy.stat().st_ctime)) \
+            == exif_rename.get_timestamp(
+                sammy_sleepy, args['date_sources'], args['source_name_format'])
 
-    def test_fallthrough_mtime(self):
-        self.args['date_sources'] = [DateSource.FILE_NAME,
-                                     DateSource.FILE_MODIFIED]
-        sleepy = datadir / 'sammy_sleepy.jpg'
-        self.assertEqual(
+    def test_fallthrough_mtime(self, args, sammy_sleepy):
+        args['date_sources'] = [DateSource.FILE_NAME, DateSource.FILE_MODIFIED]
+        assert \
             (DateSource.FILE_MODIFIED,
-             datetime.fromtimestamp(sleepy.stat().st_mtime)),
-            exif_rename.get_timestamp(sleepy, self.args['date_sources'],
-                                      self.args['source_name_format']))
+             datetime.fromtimestamp(sammy_sleepy.stat().st_mtime)) \
+            == exif_rename.get_timestamp(
+                sammy_sleepy, args['date_sources'], args['source_name_format'])
 
     def test_no_image(self):
-        self.assertRaises(exif_rename.TimestampReadException,
-                          exif_rename.get_exif_timestamp,
-                          __file__)
+        with pytest.raises(exif_rename.TimestampReadException):
+            exif_rename.get_exif_timestamp(__file__)
 
-    def test_unknown_source(self):
-        self.args['date_sources'] = ['meow']
-        self.assertRaises(ValueError,
-                          exif_rename.get_timestamp,
-                          datadir / 'sammy_sleepy.jpg',
-                          self.args)
+    def test_unknown_source(self, args):
+        args['date_sources'] = ['meow']
+        with pytest.raises(ValueError):
+            exif_rename.get_timestamp(datadir / 'sammy_sleepy.jpg', args)
 
-    def test_match_numbers(self):
+    @pytest.mark.parametrize("i", range(20))
+    def test_match_numbers(self, i):
         timestamp = '20191027_121401'
         ext = '.jpg'
-        self.assertTrue(exif_rename.matches_timestamp(
-            f'{timestamp}{ext}', timestamp, ext))
-        for i in range(1, 20):
-            with self.subTest(i=i):
-                self.assertTrue(exif_rename.matches_timestamp(
-                    f'{timestamp}-{i}{ext}', timestamp, ext))
+        assert exif_rename.matches_timestamp(
+            f'{timestamp}{f"-{i}" if i else ""}{ext}', timestamp, ext)
 
-    def test_mismatch_names(self):
+    @pytest.mark.parametrize(
+        "t",
+        [
+            '20191027_121402.jpg',
+            '20191027_121401-a.jpg',
+            '20191027_121401--1.jpg'
+        ])
+    def test_mismatch_names(self, t):
         timestamp = '20191027_121401'
         ext = '.jpg'
-        tests = ['20191027_121402.jpg', '20191027_121401-a.jpg',
-                 '20191027_121401--1.jpg']
-        for t in tests:
-            with self.subTest(name=t):
-                self.assertFalse(
-                    exif_rename.matches_timestamp(t, timestamp, ext))
+        assert not exif_rename.matches_timestamp(t, timestamp, ext)
 
 
 class ConfigTest(unittest.TestCase):
@@ -445,4 +439,4 @@ class MoveTest(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    unittest.main(verbosity=2, buffer=True)
+    sys.exit(pytest.main())
