@@ -4,7 +4,6 @@ import exif_rename
 import hashlib
 import itertools
 import logging
-import logging.handlers
 import pytest
 import re
 import shlex
