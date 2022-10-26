@@ -36,3 +36,6 @@ build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 python_files = "test.py test_*.py *_test.py"
+markers = [
+    'modify_args(dict): Override default arguments for this test'
+]
