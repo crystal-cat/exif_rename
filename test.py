@@ -37,9 +37,14 @@ def args_mock(**kwargs):
 
 
 @pytest.fixture
-def args():
+def args(request):
     """Generic mock-up of parsed arguments."""
-    return args_mock()
+    marker = request.node.get_closest_marker("modify_args")
+    if marker is None:
+        data = dict()
+    else:
+        data = marker.args[0]
+    return args_mock(**data)
 
 
 @pytest.fixture
@@ -94,23 +99,23 @@ def args_files(sample_files):
 
 
 class TestTimestamp:
-    def test_sammy_awake(self, args):
-        assert (DateSource.EXIF, datetime(2019, 4, 17, 17, 45, 37)) \
-            == exif_rename.get_timestamp(datadir / 'sammy_awake.jpg',
-                                         args['date_sources'],
-                                         args['source_name_format'])
-
-    def test_sammy_sleepy(self, args, sammy_sleepy):
-        assert (DateSource.EXIF, datetime(2019, 2, 7, 15, 37, 10)) \
-            == exif_rename.get_timestamp(
-                sammy_sleepy, args['date_sources'], args['source_name_format'])
-
-    def test_no_exif(self, args):
-        args['date_sources'] = [DateSource.EXIF, DateSource.FILE_NAME]
-        assert (DateSource.FILE_NAME, datetime(2019, 10, 27, 12, 14, 1)) \
-            == exif_rename.get_timestamp(datadir / '20191027_121401.jpg',
-                                         args['date_sources'],
-                                         args['source_name_format'])
+    @pytest.mark.parametrize(
+        ['sample', 'expected'],
+        [
+            (datadir / 'sammy_awake.jpg',
+             (DateSource.EXIF, datetime(2019, 4, 17, 17, 45, 37))),
+            (datadir / 'sammy_sleepy.jpg',
+             (DateSource.EXIF, datetime(2019, 2, 7, 15, 37, 10))),
+            pytest.param(
+                datadir / '20191027_121401.jpg',
+                (DateSource.FILE_NAME, datetime(2019, 10, 27, 12, 14, 1)),
+                marks=pytest.mark.modify_args(
+                    {'date_sources': ['exif', 'file-name']})),
+        ]
+    )
+    def test_timestamp(self, args, sample, expected):
+        assert expected == exif_rename.get_timestamp(
+            sample, args['date_sources'], args['source_name_format'])
 
     def test_unparsable_filename(self, args, sammy_sleepy):
         args['date_sources'] = [DateSource.FILE_NAME]
@@ -118,16 +123,16 @@ class TestTimestamp:
             exif_rename.get_timestamp(
                 sammy_sleepy, args['date_sources'], args['source_name_format'])
 
+    @pytest.mark.modify_args({'date_sources': ['file-name', 'file-created']})
     def test_fallthrough_ctime(self, args, sammy_sleepy):
-        args['date_sources'] = [DateSource.FILE_NAME, DateSource.FILE_CREATED]
         assert \
             (DateSource.FILE_CREATED,
              datetime.fromtimestamp(sammy_sleepy.stat().st_ctime)) \
             == exif_rename.get_timestamp(
                 sammy_sleepy, args['date_sources'], args['source_name_format'])
 
+    @pytest.mark.modify_args({'date_sources': ['file-name', 'file-modified']})
     def test_fallthrough_mtime(self, args, sammy_sleepy):
-        args['date_sources'] = [DateSource.FILE_NAME, DateSource.FILE_MODIFIED]
         assert \
             (DateSource.FILE_MODIFIED,
              datetime.fromtimestamp(sammy_sleepy.stat().st_mtime)) \
