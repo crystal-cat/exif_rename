@@ -265,10 +265,9 @@ class TestMove:
             found += 1
         assert found == len(mapping)
 
+    @pytest.mark.modify_args({'date_sources': ['exif']})
     def test_renamer_no_sources(self, tmp_path, args_files, hashed_samples):
-        # this way there will be no valid timestamp source for
-        # 20191027_121401.jpg
-        args_files['date_sources'] = [DateSource.EXIF]
+        # there will be no valid timestamp source for 20191027_121401.jpg
         r = exif_rename.Renamer(args_files)
         r.run()
         check_move(tmp_path, hashed_samples)
@@ -279,11 +278,11 @@ class TestMove:
         r.run()
         check_move(tmp_path, hashed_samples)
 
+    @pytest.mark.modify_args({'simulate': True})
     def test_renamer_simulate(
             self, args_files, sample_mapping):
         """Check if the simulated_filelist of a Renamer contains exactly the
         expected items after a run()"""
-        args_files['simulate'] = True
         r = exif_rename.Renamer(args_files)
         r.run()
 
