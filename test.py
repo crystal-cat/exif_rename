@@ -20,7 +20,10 @@ datadir = Path(__file__).parent / 'test_data'
 exif_rename.logger.setLevel(logging.DEBUG)
 
 
-def args_mock(**kwargs):
+@pytest.fixture
+def args(request):
+    """Generic mock-up of parsed arguments. You can use the
+    'modify_args' marker to modify it."""
     args = dict({
         'files': [],
         'date_sources': ['exif'],
@@ -30,24 +33,16 @@ def args_mock(**kwargs):
         'date_format': '%Y%m%d_%H%M%S',
         'simulate': False
     })
-    args.update(kwargs)
-    args['date_sources'] = \
-        [DateSource(s) for s in args['date_sources']]
+
+    marker = request.node.get_closest_marker("modify_args")
+    if marker is not None:
+        args.update(marker.args[0])
+
+    args['date_sources'] = [DateSource(s) for s in args['date_sources']]
     return args
 
 
-@pytest.fixture
-def args(request):
-    """Generic mock-up of parsed arguments."""
-    marker = request.node.get_closest_marker("modify_args")
-    if marker is None:
-        data = dict()
-    else:
-        data = marker.args[0]
-    return args_mock(**data)
-
-
-@pytest.fixture
+@pytest.fixture(scope='session')
 def sammy_sleepy():
     """Sample file: picture of sleepy Sammy. For reading only."""
     return datadir / 'sammy_sleepy.jpg'
@@ -92,10 +87,12 @@ def sample_files(tmp_path, sample_mapping):
 
 
 @pytest.fixture
-def args_files(sample_files):
+def args_files(args, sample_files):
     """Arguments mock-up with the file provided by sample_files as
     files to handle and date sources set to EXIF and filename."""
-    return args_mock(files=sample_files, date_sources=['exif', 'file-name'])
+    args['files'] = sample_files
+    args['date_sources'] = [DateSource.EXIF, DateSource.FILE_NAME]
+    return args
 
 
 class TestTimestamp:
