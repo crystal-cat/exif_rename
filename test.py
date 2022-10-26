@@ -333,22 +333,22 @@ class TestMove:
 
 
 class TestMain:
-    def test_main(self, tmp_path, args_files, hashed_samples):
+    def test_main(self, tmp_path, sample_files, hashed_samples):
         # Exact command line parameters!
         args = ['--date-source', 'exif,file-name',
                 '--source-name-format', '%Y%m%d_%H%M%S.jpg',
                 '--date-format', '%Y%m%d_%H%M%S']
-        args.extend(str(f) for f in args_files['files'])
+        args.extend(str(f) for f in sample_files)
         exif_rename.main(args)
         check_move(tmp_path, hashed_samples)
 
-    def test_main_simulate(self, args_files, sample_mapping, caplog):
+    def test_main_simulate(self, sample_files, sample_mapping, caplog):
         """call main() with --simulate"""
         args = ['--date-source', 'exif,file-name',
                 '--source-name-format', '%Y%m%d_%H%M%S.jpg',
                 '--date-format', '%Y%m%d_%H%M%S',
                 '--simulate']
-        args.extend(str(f) for f in args_files['files'])
+        args.extend(str(f) for f in sample_files)
 
         with caplog.at_level(logging.INFO, logger='exif_rename'):
             exif_rename.main(args)
