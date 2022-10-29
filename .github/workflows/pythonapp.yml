@@ -24,8 +24,9 @@ jobs:
           nox --report nox.json
       - name: Create job summary
         if: always()
-        run: |
-          python nox-report.py nox.json >>$GITHUB_STEP_SUMMARY
+        uses: airtower-luna/nox-report-to-job-summary@v1.0.0
+        with:
+          report: nox.json
       - name: Store coverage report
         uses: actions/upload-artifact@v3
         with:
