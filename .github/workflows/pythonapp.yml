@@ -18,7 +18,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
       - name: Set up Nox
-        uses: wntrblm/nox@2022.8.7
+        uses: wntrblm/nox@e7cf847b5cb8031cda8f8b6b60ccf7ad9e5eed5a
       - name: Run tests and report coverage
         run: |
           nox --report nox.json
