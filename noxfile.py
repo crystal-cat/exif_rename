@@ -8,7 +8,7 @@ def lint(session):
     session.run('flake8', '--statistics', '.')
 
 
-@nox.session(python=['3.9', '3.10'])
+@nox.session(python=['3.9', '3.10', '3.11'])
 def test(session):
     """Run tests, report coverage."""
     session.install('.[tests]')
