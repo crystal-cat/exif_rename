@@ -17,7 +17,7 @@ def test(session):
 
 @nox.session
 def coverage(session):
-    """Generage coverage report."""
+    """Generate coverage report."""
     session.install('coverage')
     session.run('coverage', 'combine')
     session.run('coverage', 'report', '-m', 'exif_rename.py')
