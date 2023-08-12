@@ -7,7 +7,7 @@ authors = [
 ]
 description = "A tool for batch renaming image files based on their (creation) date"
 license = { text="GPLv3+" }
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
