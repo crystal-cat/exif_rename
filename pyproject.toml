@@ -40,3 +40,18 @@ python_files = "test.py test_*.py *_test.py"
 markers = [
     'modify_args(dict): Override default arguments for this test'
 ]
+
+[tool.mypy]
+exclude = [
+    '^noxfile\.py$',
+    '^test\.py$',
+]
+
+[[tool.mypy.overrides]]
+module = [
+    "argcomplete",
+    "argcomplete.*",
+    "exifread",
+    "PIL",
+]
+ignore_missing_imports = true

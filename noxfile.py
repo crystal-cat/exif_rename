@@ -8,6 +8,14 @@ def lint(session):
     session.run('flake8', '--statistics', '.')
 
 
+@nox.session
+def typecheck(session):
+    """Typecheck using MyPy."""
+    session.install('.')
+    session.install('mypy')
+    session.run('mypy', '.')
+
+
 @nox.session(python=['3.9', '3.10', '3.11'])
 def test(session):
     """Run tests, report coverage."""
