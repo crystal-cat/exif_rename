@@ -22,7 +22,9 @@ from pathlib import Path
 from PIL import Image
 
 
-def scale_file(infile, size=(1280, 1280), date_format='%Y%m%d_%H%M%S'):
+def scale_file(infile: Path,
+               size: tuple[int, int] = (1280, 1280),
+               date_format: str = '%Y%m%d_%H%M%S') -> None:
     timestamp = exif_rename.get_timestamp(
         infile,
         [

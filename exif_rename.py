@@ -26,7 +26,9 @@ import re
 import shlex
 import subprocess
 import sys
+import typing
 from collections import ChainMap, defaultdict, namedtuple
+from collections.abc import Mapping
 from enum import Enum
 from pathlib import Path
 
@@ -49,7 +51,7 @@ class DateSource(Enum):
     FILE_MODIFIED = 'file-modified'
 
 
-def matches_timestamp(filename, timestamp, extension):
+def matches_timestamp(filename: str, timestamp: str, extension: str) -> bool:
     if (timestamp + extension) == filename:
         return True
     if not filename.startswith(timestamp) or not filename.endswith(extension):
@@ -62,7 +64,7 @@ exif_date_pattern = \
     re.compile(r'^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})$')
 
 
-def get_exif_timestamp(filename):
+def get_exif_timestamp(filename: str | Path) -> datetime.datetime:
     with open(filename, 'rb') as fh:
         exif_dict = exifread.process_file(fh)
 
@@ -71,14 +73,18 @@ def get_exif_timestamp(filename):
             f"File {filename} does not contain an EXIF timestamp.")
 
     datetime_str = str(exif_dict['EXIF DateTimeDigitized'])
-    datetime_match = exif_date_pattern.match(datetime_str).groups()
-    datetime_tuple = list(map(int, datetime_match))
+    if (m := exif_date_pattern.match(datetime_str)) is not None:
+        datetime_tuple = tuple(map(int, m.groups()))
+    else:
+        raise TimestampReadException('invalid EXIF timestamp format')
     return datetime.datetime(
             datetime_tuple[0], datetime_tuple[1], datetime_tuple[2],
             datetime_tuple[3], datetime_tuple[4], datetime_tuple[5])
 
 
-def get_filename_timestamp(filename, filename_format):
+def get_filename_timestamp(filename: str,
+                           filename_format: str) \
+                           -> datetime.datetime:
     try:
         return datetime.datetime.strptime(filename, filename_format)
     except ValueError:
@@ -86,12 +92,15 @@ def get_filename_timestamp(filename, filename_format):
             "Filename didn't match the specified pattern")
 
 
-def get_stat_timestamp(file, timestamp_type):
+def get_stat_timestamp(file: Path, timestamp_type: str) -> datetime.datetime:
     statinfo = file.stat()
     return datetime.datetime.fromtimestamp(getattr(statinfo, timestamp_type))
 
 
-def get_timestamp(file, date_sources, source_name_format=None):
+def get_timestamp(file: Path,
+                  date_sources: list[DateSource],
+                  source_name_format: str | None = None) \
+                  -> tuple[DateSource, datetime.datetime]:
     exceptions = []
 
     for date_source in date_sources:
@@ -99,9 +108,11 @@ def get_timestamp(file, date_sources, source_name_format=None):
             if date_source == DateSource.EXIF:
                 return (date_source, get_exif_timestamp(str(file)))
             elif date_source == DateSource.FILE_NAME:
+                # The config parser ensures source_name_format is not
+                # None when the FILE_NAME source is enabled.
                 return (date_source,
-                        get_filename_timestamp(file.name,
-                                               source_name_format))
+                        get_filename_timestamp(
+                            file.name, source_name_format))  # type: ignore
             elif date_source == DateSource.FILE_CREATED:
                 return (date_source, get_stat_timestamp(file, 'st_ctime'))
             elif date_source == DateSource.FILE_MODIFIED:
@@ -125,7 +136,9 @@ class Renamer:
     split exists to simplify and generalize some of the functions and to
     split the responsibility for better maintainability and testing.
     """
-    def __new__(cls, args):
+    mv_cmd: list[str] | None
+
+    def __new__(cls, args: Mapping[str, typing.Any]) -> 'Renamer':
         """Return a new instance of Renamer when instantiated.
         This function decides which subclass to instantiate depending on
         the arguments (the "args" parameter) given.
@@ -143,7 +156,7 @@ class Renamer:
         else:
             return object.__new__(cls)
 
-    def __init__(self, args):
+    def __init__(self, args: Mapping[str, typing.Any]) -> None:
         """Initialize a new Renamer object.
         Initialization logic common to all subclasses happens here.
         """
@@ -153,7 +166,7 @@ class Renamer:
         else:
             self.mv_cmd = None
 
-    def run(self):
+    def run(self) -> None:
         """Rename the files specified by args['files'].
         """
         for file in self.args['files']:
@@ -187,7 +200,10 @@ class Renamer:
                 logger.error('%s unmodified (no usable date source): %s',
                              file, e)
 
-    def find_unique_filename(self, directory, basename, extension):
+    def find_unique_filename(self,
+                             directory: Path,
+                             basename: str,
+                             extension: str) -> Path:
         """Find a suitable file name that doesn't already exist.
 
         Positional arguments:
@@ -207,31 +223,39 @@ class Renamer:
 
         return candidate
 
+    def path_exists(self, path: Path) -> bool:
+        """Return whether the path given exists."""
+        raise NotImplementedError('must be implemented in subclass')
+
+    def rename_file(self, src_file: Path, dest_file: Path) -> None:
+        """Rename a file."""
+        raise NotImplementedError('must be implemented in subclass')
+
 
 class SimulatedRenamer(Renamer):
     """This class contains the logic for doing a dry run, or simulated
     renaming. The actual files are not touched.
     """
-    def __init__(self, args):
+    def __init__(self, args: Mapping[str, typing.Any]) -> None:
         """Initialize a new SimulatedRenamer object.
         This constructor extends the functionality of the constructor
         from the base class.
         """
         super().__init__(args)
 
-        self.files_added_counter = defaultdict(int)
+        self.files_added_counter: dict[Path, int] = defaultdict(int)
         """Paths that are marked to exist within the simulation.
         The value for each key marks how many times the path has been
         marked to exist (as in, being the target path for renaming)
         """
 
-        self.files_removed_counter = defaultdict(int)
+        self.files_removed_counter: dict[Path, int] = defaultdict(int)
         """Paths that are marked to not exist within the simulation.
         The value for each key marks how many times the path has been
         marked to not exist (as in, being the source path for renaming)
         """
 
-    def path_exists(self, path):
+    def path_exists(self, path: Path) -> bool:
         """Return whether the path given exists.
         Called by the find_unique_filename() method in the base class.
 
@@ -243,7 +267,7 @@ class SimulatedRenamer(Renamer):
                 + self.files_added_counter[path]
                 - self.files_removed_counter[path] > 0)
 
-    def rename_file(self, src_file, dest_file):
+    def rename_file(self, src_file: Path, dest_file: Path) -> None:
         """Record a simulated rename.
         The results of path_exists() function will reflect the rename.
         """
@@ -256,7 +280,7 @@ class FilesystemChangingRenamer(Renamer):
     in the file system, as opposed to simulated renaming.
     """
 
-    def rename_file(self, src_file, dest_file):
+    def rename_file(self, src_file: Path, dest_file: Path) -> None:
         """Rename a file.
         Note that no checking of file names is made by this function, the
         source file name is expected to exist and the destination file name
@@ -269,14 +293,14 @@ class FilesystemChangingRenamer(Renamer):
             logger.debug('%r.rename(\'%s\')', src_file, dest_file)
             src_file.rename(dest_file)
 
-    def path_exists(self, path):
+    def path_exists(self, path: Path) -> bool:
         """Return whether the path given exists in the file system.
         Called by the find_unique_filename() method in the base class.
         """
         return path.exists()
 
 
-def parse_date_sources(args):
+def parse_date_sources(args: Mapping[str, typing.Any]) -> list[DateSource]:
     sources = list()
     for s in args['date_source'].split(','):
         try:
@@ -316,12 +340,13 @@ conf_options = [
 ]
 
 
-def read_config(conffile):
+def read_config(conffile: str | Path) -> dict[str, str | bool]:
     config = configparser.ConfigParser()
-    with open(Path(conffile).expanduser()) as conffile:
-        config.read_file(conffile)
+    with open(Path(conffile).expanduser()) as fh:
+        config.read_file(fh)
 
     result = dict()
+    value: str | bool | None
     for opt in conf_options:
         if opt.type == 'boolean':
             value = config.getboolean(opt.section, opt.option, fallback=None)
@@ -333,7 +358,8 @@ def read_config(conffile):
     return result
 
 
-def merge_args(args, conffile=None):
+def merge_args(args: argparse.Namespace, conffile: str | None = None) \
+        -> Mapping[str, typing.Any]:
     """Merge the passed in command line arguments with configuration file
     and defaults.
 
@@ -373,7 +399,7 @@ def merge_args(args, conffile=None):
     return combined_args
 
 
-def main(command_line=None):
+def main(command_line: list[str] | None = None) -> None:
     default_dateformat_help = default_dateformat.replace('%', '%%')
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter)
