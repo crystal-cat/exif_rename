@@ -30,6 +30,7 @@ def args(request):
         'mv_cmd': None,
         'pause_on_error': False,
         'date_format': '%Y%m%d_%H%M%S',
+        'preserve_suffix': [],
         'simulate': False
     })
 
@@ -51,6 +52,7 @@ def sammy_sleepy():
 def sample_mapping():
     """A dict mapping sample input files to their expected (possible)
     names after renaming."""
+
     return {
         datadir / 'sammy_awake.jpg': ['20190417_174537.jpg',
                                       '20190417_174537-1.jpg'],
@@ -61,8 +63,18 @@ def sample_mapping():
     }
 
 
-@pytest.fixture(scope='session')
-def hashed_samples(sample_mapping):
+def sample_mapping_with_suffixes():
+    return {
+        datadir / 'sammy_awake.jpg': ['20190417_174537_awake.jpg',
+                                      '20190417_174537_awake-1.jpg'],
+        datadir / 'sammy_awake_commented.jpg': ['20190417_174537.jpg',
+                                                '20190417_174537-1.jpg'],
+        datadir / 'sammy_sleepy.jpg': ['20190207_153710_sleepy.jpg'],
+        datadir / '20191027_121401.jpg': ['20191027_121401.jpg']
+    }
+
+
+def generate_hashed_samples(sample_mapping):
     """Based on sample_mapping provide a dict with the SHA1 hashes of
     the files contents as keys and the same values.
 
@@ -73,6 +85,11 @@ def hashed_samples(sample_mapping):
         sha.update(file.read_bytes())
         hashes[sha.hexdigest()] = names
     return hashes
+
+
+@pytest.fixture(scope='session')
+def hashed_samples(sample_mapping):
+    return generate_hashed_samples(sample_mapping)
 
 
 @pytest.fixture
@@ -145,11 +162,13 @@ class TestTimestamp:
             exif_rename.get_timestamp(datadir / 'sammy_sleepy.jpg', args)
 
     @pytest.mark.parametrize("i", range(20))
-    def test_match_numbers(self, i):
+    @pytest.mark.parametrize("suffix", ['', 'meow'])
+    def test_match_numbers(self, i, suffix):
         timestamp = '20191027_121401'
         ext = '.jpg'
         assert exif_rename.matches_timestamp(
-            f'{timestamp}{f"-{i}" if i else ""}{ext}', timestamp, ext)
+            f'{timestamp}{f"-{i}" if i else ""}{suffix}{ext}',
+            timestamp, suffix, ext)
 
     @pytest.mark.parametrize(
         "t",
@@ -161,7 +180,18 @@ class TestTimestamp:
     def test_mismatch_names(self, t):
         timestamp = '20191027_121401'
         ext = '.jpg'
-        assert not exif_rename.matches_timestamp(t, timestamp, ext)
+        assert not exif_rename.matches_timestamp(t, timestamp, '', ext)
+
+    @pytest.mark.parametrize(
+        "t",
+        [
+            '20191027_121402.jpg',
+            '20191027_121401woof.jpg'
+        ])
+    def test_mismatch_suffixes(self, t):
+        timestamp = '20191027_121401'
+        ext = '.jpg'
+        assert not exif_rename.matches_timestamp(t, timestamp, 'meow', ext)
 
 
 class TestConfig:
@@ -230,6 +260,16 @@ def check_move(tmp_path, hashes):
 
 class TestMove:
     def test_renamer(self, tmp_path, args_files, hashed_samples):
+        r = exif_rename.Renamer(args_files)
+        r.run()
+        check_move(tmp_path, hashed_samples)
+
+    @pytest.mark.modify_args({'preserve_suffix': ['_sleepy', '_awake']})
+    @pytest.mark.parametrize('sample_mapping', [sample_mapping_with_suffixes()])
+    @pytest.mark.parametrize('hashed_samples', [generate_hashed_samples(sample_mapping_with_suffixes())])
+    def test_renamer_preserve_suffix(self, tmp_path, args_files,
+                                     hashed_samples):
+
         r = exif_rename.Renamer(args_files)
         r.run()
         check_move(tmp_path, hashed_samples)
