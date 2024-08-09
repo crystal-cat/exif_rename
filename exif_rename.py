@@ -51,12 +51,14 @@ class DateSource(Enum):
     FILE_MODIFIED = 'file-modified'
 
 
-def matches_timestamp(filename: str, timestamp: str, extension: str) -> bool:
-    if (timestamp + extension) == filename:
+def matches_timestamp(filename: str, timestamp: str, suffix: str,
+                      extension: str) -> bool:
+
+    if (timestamp + suffix + extension) == filename:
         return True
     if not filename.startswith(timestamp) or not filename.endswith(extension):
         return False
-    midsection = filename[len(timestamp):-len(extension)]
+    midsection = filename[len(timestamp):-len(extension)-len(suffix)]
     return re.match(r'-\d+', midsection) is not None
 
 
@@ -125,6 +127,21 @@ def get_timestamp(file: Path,
     raise TimestampReadException('\n'.join(exceptions))
 
 
+def get_file_suffix(file: Path, suffixes: typing.Iterable[str]):
+    """Find and return the longest matching file name suffix.
+
+    Positional arguments:
+    file -- The file path object.
+    suffixes -- An iterable collection of allowed suffixes.
+
+    Returns:
+    The longest string in the collection of suffixes that's found at the
+    end of the file name. If there's no match, an empty string is returned.
+    """
+    matches = [''] + [s for s in suffixes if file.stem.endswith(s)]
+    return max(matches, key=len)
+
+
 class Renamer:
     """The base Renamer class.
     The main purpose of this class is to keep state while renaming or
@@ -184,14 +201,16 @@ class Renamer:
                     self.args['date_sources'],
                     self.args['source_name_format'])
                 formatted_date = dt.strftime(self.args['date_format'])
+                suffix = get_file_suffix(file, self.args['preserve_suffix'])
                 ext = file.suffix.lower()
-                if matches_timestamp(file.name, formatted_date, ext):
+                if matches_timestamp(file.name, formatted_date, suffix, ext):
                     logger.debug('%s unmodified (file name already matches)',
                                  file)
                     continue
 
                 dest_file = self.find_unique_filename(file.parent,
-                                                      formatted_date, ext)
+                                                      formatted_date + suffix,
+                                                      ext)
                 logger.info('%s -(%s)-> %s',
                             file, date_source.value, dest_file)
                 self.rename_file(file, dest_file)
@@ -424,6 +443,10 @@ def main(command_line: list[str] | None = None) -> None:
     mv_group.add_argument("-m", "--mv-cmd", action="store", metavar="cmd",
                           dest="mv_cmd",
                           help="Specify a command to use for renaming")
+    exec_group.add_argument("--preserve-suffix", action="append",
+                            metavar="suffix", default=[],
+                            help="Preserve a given suffix (a string at the end"
+                            "of the file name before the file extension).")
 
     date_group = parser.add_argument_group(date_group_title)
     date_group.add_argument("-d", "--date-source", action="store",
