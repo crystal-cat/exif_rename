@@ -265,8 +265,10 @@ class TestMove:
         check_move(tmp_path, hashed_samples)
 
     @pytest.mark.modify_args({'preserve_suffix': ['_sleepy', '_awake']})
-    @pytest.mark.parametrize('sample_mapping', [sample_mapping_with_suffixes()])
-    @pytest.mark.parametrize('hashed_samples', [generate_hashed_samples(sample_mapping_with_suffixes())])
+    @pytest.mark.parametrize('sample_mapping',
+                             [sample_mapping_with_suffixes()])
+    @pytest.mark.parametrize('hashed_samples', [generate_hashed_samples(
+                                sample_mapping_with_suffixes())])
     def test_renamer_preserve_suffix(self, tmp_path, args_files,
                                      hashed_samples):
 
