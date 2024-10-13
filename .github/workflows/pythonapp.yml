@@ -20,7 +20,7 @@ jobs:
       - name: Set up Nox
         uses: wntrblm/nox@5656fcedc31a1ea37d016e4d94d00185330cc528 # 2024.04.15
         with:
-          python-versions: '3.10, 3.11, 3.12'
+          python-versions: '3.10, 3.11, 3.12, 3.13'
       - name: Run tests and report coverage
         run: |
           nox --report nox.json
