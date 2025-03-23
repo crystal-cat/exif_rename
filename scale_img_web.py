@@ -19,7 +19,42 @@ import exif_rename
 import sys
 from contextlib import ExitStack
 from pathlib import Path
-from PIL import Image
+from PIL import ExifTags, Image
+
+
+def exif_rotate(img: Image.Image) -> tuple[Image.Image, bytes]:
+    """Apply the rotation defined in EXIF data (if any) to the image,
+    currently only pure rotation is supported. For any unsupported
+    "Orientation" value copy the Orientation field to EXIF data
+    returned as second element of the return tuple, otherwise the data
+    will be empty.
+
+    Implementation note: EXIF rotations are defined with clockwise
+    angles, the Pillow Image transpose methods counter clockwise.
+
+    """
+    orig_exif = img.getexif()
+    try:
+        orientation = orig_exif[ExifTags.Base.Orientation]
+    except KeyError:
+        # no orientation in base image, do nothing
+        return img, bytes()
+
+    exif_raw = bytes()
+    if orientation == 1:
+        pass
+    elif orientation == 3:
+        img = img.transpose(Image.Transpose.ROTATE_180)
+    elif orientation == 6:
+        img = img.transpose(Image.Transpose.ROTATE_270)
+    elif orientation == 8:
+        img = img.transpose(Image.Transpose.ROTATE_90)
+    else:
+        # copy orientation to output
+        new_exif = img.getexif()
+        new_exif[ExifTags.Base.Orientation] = orientation
+        exif_raw = new_exif.tobytes()
+    return img, exif_raw
 
 
 def scale_file(infile: Path,
@@ -48,8 +83,9 @@ def scale_file(infile: Path,
         print(f'{infile} -> {outfile}')
 
         img = stack.enter_context(Image.open(infile))
+        img, exif_raw = exif_rotate(img)
         img.thumbnail(size)
-        img.save(out)
+        img.save(out, exif=exif_raw)
 
 
 if __name__ == '__main__':
